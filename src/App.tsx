@@ -46,6 +46,7 @@ interface Product {
   id: string;
   name: string;
   price: number;
+  buyingPrice: number;
   description: string;
   imageUrl: string;
   category: string;
@@ -197,12 +198,12 @@ export default function App() {
 
   // Products State
   const [productsList, setProductsList] = useState<Product[]>([
-    { id: '1', name: 'Organic Rosehip Oil', price: 1200, description: 'Pure cold-pressed rosehip oil for radiant, youthful skin.', imageUrl: 'https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?w=800&q=80', category: 'screen care' },
-    { id: '2', name: 'Revitalizing Eye Serum', price: 950, description: 'Caffeine-infused serum to reduce puffiness and dark circles.', imageUrl: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800&q=80', category: 'eye care' },
-    { id: '3', name: 'Mineral Glow Foundation', price: 2100, description: 'Lightweight mineral foundation for a natural, flawless finish.', imageUrl: 'https://images.unsplash.com/photo-1596704017254-9b121068fb31?w=800&q=80', category: 'makeover' },
-    { id: '4', name: 'Vitamin C Night Cream', price: 1800, description: 'Brightening night cream with stabilized Vitamin C and hyaluronic acid.', imageUrl: 'https://images.unsplash.com/photo-1611080541599-8c6dbde6ed28?w=800&q=80', category: 'screen care' },
-    { id: '5', name: 'Botanical Lash Mascara', price: 1100, description: 'Volumizing mascara made with clean, eye-safe plant extracts.', imageUrl: 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?w=800&q=80', category: 'eye care' },
-    { id: '6', name: 'Velvet Matte Lipstick', price: 1400, description: 'Long-lasting matte lipstick enriched with shea butter.', imageUrl: 'https://images.unsplash.com/photo-1586776977607-310e9c725c37?w=800&q=80', category: 'makeover' },
+    { id: '1', name: 'Organic Rosehip Oil', price: 1200, buyingPrice: 800, description: 'Pure cold-pressed rosehip oil for radiant, youthful skin.', imageUrl: 'https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?w=800&q=80', category: 'screen care' },
+    { id: '2', name: 'Revitalizing Eye Serum', price: 950, buyingPrice: 600, description: 'Caffeine-infused serum to reduce puffiness and dark circles.', imageUrl: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800&q=80', category: 'eye care' },
+    { id: '3', name: 'Mineral Glow Foundation', price: 2100, buyingPrice: 1500, description: 'Lightweight mineral foundation for a natural, flawless finish.', imageUrl: 'https://images.unsplash.com/photo-1596704017254-9b121068fb31?w=800&q=80', category: 'makeover' },
+    { id: '4', name: 'Vitamin C Night Cream', price: 1800, buyingPrice: 1200, description: 'Brightening night cream with stabilized Vitamin C and hyaluronic acid.', imageUrl: 'https://images.unsplash.com/photo-1611080541599-8c6dbde6ed28?w=800&q=80', category: 'screen care' },
+    { id: '5', name: 'Botanical Lash Mascara', price: 1100, buyingPrice: 700, description: 'Volumizing mascara made with clean, eye-safe plant extracts.', imageUrl: 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?w=800&q=80', category: 'eye care' },
+    { id: '6', name: 'Velvet Matte Lipstick', price: 1400, buyingPrice: 900, description: 'Long-lasting matte lipstick enriched with shea butter.', imageUrl: 'https://images.unsplash.com/photo-1586776977607-310e9c725c37?w=800&q=80', category: 'makeover' },
   ]);
 
   const [selectedCategory, setSelectedCategory] = useState('All Products');
@@ -218,6 +219,7 @@ export default function App() {
   const [productForm, setProductForm] = useState({
     name: '',
     price: 0,
+    buyingPrice: 0,
     category: 'eye care',
     description: '',
     imageUrl: ''
@@ -229,7 +231,7 @@ export default function App() {
       setProductForm({ ...product });
     } else {
       setEditingProduct(null);
-      setProductForm({ name: '', price: 0, category: 'eye care', description: '', imageUrl: '' });
+      setProductForm({ name: '', price: 0, buyingPrice: 0, category: 'eye care', description: '', imageUrl: '' });
     }
     setIsProductModalOpen(true);
   };
@@ -812,7 +814,9 @@ export default function App() {
                             <tr>
                               <th className="px-6 py-3">Catalog Item</th>
                               <th className="px-6 py-3">Category</th>
-                              <th className="px-6 py-3">Price Unit</th>
+                              <th className="px-6 py-3">Buying Price</th>
+                              <th className="px-6 py-3">Selling Price</th>
+                              <th className="px-6 py-3">Profit</th>
                               <th className="px-6 py-3 text-right">Control Actions</th>
                             </tr>
                           </thead>
@@ -835,8 +839,14 @@ export default function App() {
                                     {product.category}
                                   </span>
                                 </td>
+                                <td className="px-6 py-4 font-black text-slate-400 font-mono">
+                                  {formatPrice(product.buyingPrice || 0)}
+                                </td>
                                 <td className="px-6 py-4 font-black text-pink-600 font-mono">
                                   {formatPrice(product.price)}
+                                </td>
+                                <td className="px-6 py-4 font-black text-green-600 font-mono">
+                                  {formatPrice(product.price - (product.buyingPrice || 0))}
                                 </td>
                                 <td className="px-6 py-4 text-right">
                                   <div className="flex justify-end gap-3">
@@ -1214,20 +1224,32 @@ export default function App() {
                     </div>
 
                     <form onSubmit={handleProductSubmit} className="p-8 space-y-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Product Name</label>
+                        <input 
+                          type="text" 
+                          required
+                          placeholder="e.g. Organic Serum"
+                          value={productForm.name}
+                          onChange={(e) => setProductForm(prev => ({ ...prev, name: e.target.value }))}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all outline-none"
+                        />
+                      </div>
+
                       <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-2">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Product Name</label>
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Buying Price (TK)</label>
                           <input 
-                            type="text" 
+                            type="number" 
                             required
-                            placeholder="e.g. Organic Serum"
-                            value={productForm.name}
-                            onChange={(e) => setProductForm(prev => ({ ...prev, name: e.target.value }))}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all outline-none"
+                            placeholder="0"
+                            value={productForm.buyingPrice || ''}
+                            onChange={(e) => setProductForm(prev => ({ ...prev, buyingPrice: parseInt(e.target.value) || 0 }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all outline-none"
                           />
                         </div>
                         <div className="space-y-2">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Price (TK)</label>
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Selling Price (TK)</label>
                           <input 
                             type="number" 
                             required
