@@ -74,7 +74,6 @@ interface Order {
   customerName: string;
   status: 'Pending' | 'Packing done' | 'Hand over to the currier agent' | 'delivery done';
   timestamp: string;
-  deliveryCharge: number;
   totalAmount: number;
   dateFields: {
     day: string;
@@ -138,7 +137,6 @@ export default function App() {
     name: '',
     address: '',
     mobile: '',
-    location: 'Inside Dhaka',
     paymentMethod: 'cash on delivery',
     invoiceNumber: '',
     date: new Date().toLocaleDateString('en-GB')
@@ -178,7 +176,6 @@ export default function App() {
       customerName: checkoutForm.name,
       status: 'Pending',
       timestamp: new Date().toLocaleString(),
-      deliveryCharge: deliveryCharge,
       totalAmount: totalAmount,
       dateFields: {
         day: new Date().getDate().toString(),
@@ -207,7 +204,6 @@ export default function App() {
   ]);
 
   const [selectedCategory, setSelectedCategory] = useState('All Products');
-  const [cartQuickCategory, setCartQuickCategory] = useState('All Products');
   const categories = ['All Products', 'eye care', 'screen care', 'makeover'];
 
   const filteredProducts = selectedCategory === 'All Products' 
@@ -342,8 +338,7 @@ export default function App() {
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const deliveryCharge = cart.length > 0 ? (checkoutForm.location === 'Inside Dhaka' ? 80 : 120) : 0;
-  const totalAmount = cartTotal + deliveryCharge;
+  const totalAmount = cartTotal;
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
 
@@ -1404,23 +1399,6 @@ export default function App() {
                         </div>
 
                         <div className="space-y-2">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Location (Delivery Charge)</label>
-                          <div className="relative">
-                            <select 
-                              value={checkoutForm.location}
-                              onChange={(e) => setCheckoutForm(prev => ({ ...prev, location: e.target.value }))}
-                              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 appearance-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all outline-none"
-                            >
-                              <option value="Inside Dhaka">Inside Dhaka City (80 TK)</option>
-                              <option value="Outside Dhaka">Outside Dhaka (120 TK)</option>
-                            </select>
-                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                              <Plus className="w-4 h-4 rotate-45" />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Payment Method</label>
                           <div className="relative">
                             <select 
@@ -1472,11 +1450,7 @@ export default function App() {
                           <span>Subtotal</span>
                           <span>{formatPrice(cartTotal)}</span>
                         </div>
-                        <div className="flex justify-between text-[11px] font-bold text-slate-900 border-t border-slate-50 pt-3">
-                          <span className="text-slate-500 font-medium">Delivery ({checkoutForm.location})</span>
-                          <span>{formatPrice(deliveryCharge)}</span>
-                        </div>
-                        <div className="flex justify-between pt-3 text-lg font-black text-slate-900">
+                        <div className="flex justify-between pt-3 text-lg font-black text-slate-900 border-t border-slate-50">
                           <span className="text-[12px] uppercase">Total</span>
                           <span className="text-pink-600">{formatPrice(totalAmount)}</span>
                         </div>
@@ -1626,48 +1600,6 @@ export default function App() {
                       ))}
                     </div>
                   )}
-
-                  {/* Quick Shop Section */}
-                  <div className="mt-10 border-t border-slate-100 pt-8">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Quick Add More</h3>
-                      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar max-w-[200px]">
-                        {categories.map(cat => (
-                          <button 
-                            key={cat}
-                            onClick={() => setCartQuickCategory(cat)}
-                            className={`whitespace-nowrap px-3 py-1 rounded-full text-[9px] font-bold uppercase transition-all ${
-                              cartQuickCategory === cat 
-                                ? 'bg-pink-500 text-white shadow-lg shadow-pink-500/20' 
-                                : 'bg-slate-50 text-slate-400 hover:bg-slate-100'
-                            }`}
-                          >
-                            {cat === 'All Products' ? 'All' : cat}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar -mx-2 px-2">
-                      {productsList
-                        .filter(p => cartQuickCategory === 'All Products' || p.category === cartQuickCategory)
-                        .map(product => (
-                          <div key={product.id} className="min-w-[140px] bg-white border border-slate-100 rounded-xl p-2 flex flex-col shadow-sm">
-                            <div className="w-full h-20 rounded-lg overflow-hidden mb-2">
-                              <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
-                            </div>
-                            <h4 className="text-[10px] font-bold text-slate-900 truncate uppercase mt-1">{product.name}</h4>
-                            <p className="text-[10px] font-black text-pink-600 mt-1">{formatPrice(product.price)}</p>
-                            <button 
-                              onClick={() => addToCart(product)}
-                              className="mt-2 w-full py-2 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-pink-500 transition-all flex items-center justify-center gap-1"
-                            >
-                              <Plus className="w-3 h-3" /> Add
-                            </button>
-                          </div>
-                      ))}
-                    </div>
-                  </div>
                 </div>
 
                 <div className="p-6 border-t border-slate-100 bg-slate-50/50">
@@ -1675,10 +1607,6 @@ export default function App() {
                     <div className="flex justify-between text-xs text-slate-500 font-medium">
                       <span>Subtotal</span>
                       <span>{formatPrice(cartTotal)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs text-slate-500 font-medium">
-                      <span>Delivery ({checkoutForm.location})</span>
-                      <span>{formatPrice(deliveryCharge)}</span>
                     </div>
                     <div className="flex justify-between pt-2 border-t border-slate-100">
                       <span className="font-black text-slate-900 uppercase text-[12px]">Total Amount</span>
