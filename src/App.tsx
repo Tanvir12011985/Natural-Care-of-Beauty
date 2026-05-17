@@ -63,8 +63,8 @@ const formatPrice = (price: number) => {
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'store' | 'membership' | 'admin' | 'checkout' | 'success' | 'tracking'>('store');
-  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'products' | 'members'>('products');
+  const [activeTab, setActiveTab] = useState<'store' | 'admin' | 'checkout' | 'success' | 'tracking'>('store');
+  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'products' | 'members' | 'plans'>('products');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(true); // Default to true for demo based on user email in metadata
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -73,6 +73,7 @@ export default function App() {
   const [lastOrderItems, setLastOrderItems] = useState<CartItem[]>([]);
   const [showSlip, setShowSlip] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
 
   // Members State
   const [memberData, setMemberData] = useState<Member[]>([
@@ -254,13 +255,6 @@ export default function App() {
             Product Catalog
           </button>
           
-          <button 
-            onClick={() => setActiveTab('membership')}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md font-medium transition-colors ${activeTab === 'membership' ? 'bg-pink-600/10 text-pink-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
-          >
-            <Users className="w-4 h-4" />
-            Memberships
-          </button>
 
           <button 
             onClick={() => setActiveTab('tracking')}
@@ -398,10 +392,24 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
-                <div className="flex justify-between items-end">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                   <div>
                     <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Order Tracking</h1>
                     <p className="text-slate-500 text-xs mt-1">Monitor shipment progress and update courier status.</p>
+                  </div>
+                  <div className="w-full md:w-72">
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        placeholder="Search Order # or Name..."
+                        value={orderSearchQuery}
+                        onChange={(e) => setOrderSearchQuery(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 pl-10 text-xs font-medium focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all outline-none"
+                      />
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                        <ShoppingBag className="w-4 h-4" />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -417,14 +425,24 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody className="text-sm text-slate-600">
-                        {orders.length === 0 ? (
+                        {orders.filter(o => 
+                          o.orderNumber.toLowerCase().includes(orderSearchQuery.toLowerCase()) || 
+                          o.customerName.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
+                          o.invoiceNumber.toLowerCase().includes(orderSearchQuery.toLowerCase())
+                        ).length === 0 ? (
                           <tr>
                             <td colSpan={4} className="px-6 py-20 text-center text-slate-400 font-medium italic">
-                              No orders in tracking yet. Complete a checkout to see orders here.
+                              {orderSearchQuery ? `No results found for "${orderSearchQuery}"` : "No orders in tracking yet. Complete a checkout to see orders here."}
                             </td>
                           </tr>
                         ) : (
-                          orders.map((order) => (
+                          orders
+                            .filter(o => 
+                              o.orderNumber.toLowerCase().includes(orderSearchQuery.toLowerCase()) || 
+                              o.customerName.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
+                              o.invoiceNumber.toLowerCase().includes(orderSearchQuery.toLowerCase())
+                            )
+                            .map((order) => (
                             <tr key={order.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
                               <td className="px-6 py-4">
                                 <p className="font-bold text-slate-900">{order.orderNumber}</p>
@@ -474,58 +492,6 @@ export default function App() {
               </motion.div>
             )}
 
-            {activeTab === 'membership' && (
-              <motion.div
-                key="membership"
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.02 }}
-                className="max-w-5xl mx-auto space-y-12 py-8"
-              >
-                <div className="text-center space-y-4">
-                  <h2 className="text-4xl font-bold text-slate-900 tracking-tight">Unlock Elite Access</h2>
-                  <p className="text-slate-500 max-w-xl mx-auto">
-                    Join the ranks of elite creators with our subscription tiers designed for visionaries.
-                  </p>
-                </div>
-
-                <div className="grid md:grid-cols-3 gap-8">
-                  {[
-                    { name: 'Basic', price: 0, description: 'For occasional explorers', perks: ['Early access', 'Community board', 'Email updates'] },
-                    { name: 'Prime', price: 2500, description: 'Our most popular choice', perks: ['15% off products', 'Dedicated support', 'Elite badge'], popular: true },
-                    { name: 'Founder', price: 7500, description: 'For the inner circle', perks: ['30% off life-time', 'Private lounge', 'Beta tester access'] }
-                  ].map((plan) => (
-                    <div key={plan.name} className={`bg-white p-8 rounded-2xl border ${plan.popular ? 'border-blue-500 ring-4 ring-blue-500/10' : 'border-slate-200'} shadow-sm flex flex-col relative`}>
-                      {plan.popular && (
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">
-                          Recommended
-                        </div>
-                      )}
-                      <h3 className="text-xl font-bold text-slate-900">{plan.name}</h3>
-                      <p className="text-sm text-slate-400 mt-1 mb-6">{plan.description}</p>
-                      <div className="mb-6">
-                        <span className="text-4xl font-bold text-slate-900">{formatPrice(plan.price)}</span>
-                        <span className="text-slate-400 text-sm">/mo</span>
-                      </div>
-                      <ul className="space-y-4 mb-8 flex-grow">
-                        {plan.perks.map((perk) => (
-                          <li key={perk} className="text-sm text-slate-600 flex items-center gap-3">
-                            <div className="w-5 h-5 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                              <ShieldCheck className="w-3 h-3 text-blue-500" />
-                            </div>
-                            {perk}
-                          </li>
-                        ))}
-                      </ul>
-                      <button className={`w-full py-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${plan.popular ? 'bg-blue-600 text-white shadow-lg hover:bg-blue-700 shadow-blue-500/20' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
-                        Choose {plan.name}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-
             {activeTab === 'admin' && (
               <motion.div
                 key="admin"
@@ -552,7 +518,13 @@ export default function App() {
                     onClick={() => setAdminSubTab('members')}
                     className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${adminSubTab === 'members' ? 'border-pink-500 text-pink-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                   >
-                    Membership Management
+                    Members
+                  </button>
+                  <button 
+                    onClick={() => setAdminSubTab('plans')}
+                    className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${adminSubTab === 'plans' ? 'border-pink-500 text-pink-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                  >
+                    Membership Plans
                   </button>
                 </div>
 
@@ -706,6 +678,57 @@ export default function App() {
                           </tbody>
                         </table>
                       </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {adminSubTab === 'plans' && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="space-y-12 py-4"
+                  >
+                    <div className="text-center space-y-2">
+                      <h2 className="text-2xl font-black text-slate-900 tracking-tight uppercase tracking-widest">Active Membership Tiers</h2>
+                      <p className="text-slate-500 text-xs font-medium">Control the plans and benefits offered to your elite community.</p>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-6">
+                      {[
+                        { name: 'Basic', price: 0, description: 'For occasional explorers', perks: ['Early access', 'Community board', 'Email updates'] },
+                        { name: 'Prime', price: 2500, description: 'Our most popular choice', perks: ['15% off products', 'Dedicated support', 'Elite badge'], popular: true },
+                        { name: 'Founder', price: 7500, description: 'For the inner circle', perks: ['30% off life-time', 'Private lounge', 'Beta tester access'] }
+                      ].map((plan) => (
+                        <div key={plan.name} className={`bg-white p-6 rounded-2xl border ${plan.popular ? 'border-pink-500 ring-2 ring-pink-500/10' : 'border-slate-200'} shadow-sm flex flex-col relative`}>
+                          {plan.popular && (
+                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-pink-500 text-white text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full">
+                              Popular
+                            </div>
+                          )}
+                          <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">{plan.name}</h3>
+                          <p className="text-[10px] text-slate-400 mt-1 mb-4 font-bold uppercase">{plan.description}</p>
+                          <div className="mb-4">
+                            <span className="text-2xl font-black text-slate-900">{formatPrice(plan.price)}</span>
+                            <span className="text-slate-400 text-[10px] font-bold">/MO</span>
+                          </div>
+                          <ul className="space-y-3 mb-6 flex-grow">
+                            {plan.perks.map((perk) => (
+                              <li key={perk} className="text-[11px] text-slate-600 flex items-center gap-2 font-medium">
+                                <ShieldCheck className="w-3.5 h-3.5 text-pink-500" />
+                                {perk}
+                              </li>
+                            ))}
+                          </ul>
+                          <div className="flex gap-2">
+                            <button className="flex-1 py-2 bg-slate-900 text-white rounded-lg font-black text-[9px] uppercase tracking-widest hover:bg-pink-600 transition-all">
+                              Edit Plan
+                            </button>
+                            <button className="p-2 bg-slate-100 text-slate-400 rounded-lg hover:text-pink-500 transition-colors">
+                              <SettingsIcon className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </motion.div>
                 )}
