@@ -74,6 +74,7 @@ interface Order {
   customerName: string;
   status: 'Pending' | 'Packing done' | 'Hand over to the currier agent' | 'delivery done';
   timestamp: string;
+  deliveryCharge: number;
   totalAmount: number;
   dateFields: {
     day: string;
@@ -137,6 +138,7 @@ export default function App() {
     name: '',
     address: '',
     mobile: '',
+    location: 'Inside Dhaka',
     paymentMethod: 'cash on delivery',
     invoiceNumber: '',
     date: new Date().toLocaleDateString('en-GB')
@@ -176,6 +178,7 @@ export default function App() {
       customerName: checkoutForm.name,
       status: 'Pending',
       timestamp: new Date().toLocaleString(),
+      deliveryCharge: deliveryCharge,
       totalAmount: totalAmount,
       dateFields: {
         day: new Date().getDate().toString(),
@@ -338,7 +341,8 @@ export default function App() {
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const totalAmount = cartTotal;
+  const deliveryCharge = cart.length > 0 ? (checkoutForm.location === 'Inside Dhaka' ? 80 : 120) : 0;
+  const totalAmount = cartTotal + deliveryCharge;
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
 
@@ -1399,6 +1403,23 @@ export default function App() {
                         </div>
 
                         <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Location (Delivery Charge)</label>
+                          <div className="relative">
+                            <select 
+                              value={checkoutForm.location}
+                              onChange={(e) => setCheckoutForm(prev => ({ ...prev, location: e.target.value }))}
+                              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 appearance-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all outline-none"
+                            >
+                              <option value="Inside Dhaka">Inside Dhaka City (80 TK)</option>
+                              <option value="Outside Dhaka">Outside Dhaka (120 TK)</option>
+                            </select>
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                              <Plus className="w-4 h-4 rotate-45" />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Payment Method</label>
                           <div className="relative">
                             <select 
@@ -1449,6 +1470,10 @@ export default function App() {
                         <div className="flex justify-between text-xs font-medium text-slate-500">
                           <span>Subtotal</span>
                           <span>{formatPrice(cartTotal)}</span>
+                        </div>
+                        <div className="flex justify-between text-[11px] font-bold text-slate-900 border-t border-slate-50 pt-3">
+                          <span className="text-slate-500 font-medium">Delivery ({checkoutForm.location})</span>
+                          <span>{formatPrice(deliveryCharge)}</span>
                         </div>
                         <div className="flex justify-between pt-3 text-lg font-black text-slate-900 border-t border-slate-50">
                           <span className="text-[12px] uppercase">Total</span>
@@ -1610,7 +1635,7 @@ export default function App() {
                     </div>
                     <div className="flex justify-between pt-2 border-t border-slate-100">
                       <span className="font-black text-slate-900 uppercase text-[12px]">Total Amount</span>
-                      <span className="font-black text-pink-600 text-lg">{formatPrice(totalAmount)}</span>
+                      <span className="font-black text-pink-600 text-lg">{formatPrice(cartTotal)}</span>
                     </div>
                   </div>
                   <button 
@@ -1698,11 +1723,19 @@ export default function App() {
 
                   {/* Total & Payment */}
                   <div className="border-t border-dashed border-slate-300 pt-4 mb-4">
-                    <div className="flex justify-between font-black text-[12px] mb-1">
-                      <span>TOTAL:</span>
+                    <div className="flex justify-between font-bold mb-1">
+                      <span>SUBTOTAL:</span>
                       <span>{formatPrice(lastOrderItems.reduce((s, i) => s + (i.price * i.quantity), 0))}</span>
                     </div>
-                    <div className="flex justify-between uppercase font-bold text-[8px] text-slate-500 italic">
+                    <div className="flex justify-between font-bold mb-1">
+                      <span>DELIVERY:</span>
+                      <span>{formatPrice(deliveryCharge)}</span>
+                    </div>
+                    <div className="flex justify-between font-black text-[12px] border-t border-slate-200 pt-1 mt-1 mb-1">
+                      <span>TOTAL:</span>
+                      <span>{formatPrice(totalAmount)}</span>
+                    </div>
+                    <div className="flex justify-between uppercase font-bold text-[8px] text-slate-500 italic mt-2">
                       <span>PAYMENT:</span>
                       <span>{checkoutForm.paymentMethod}</span>
                     </div>
