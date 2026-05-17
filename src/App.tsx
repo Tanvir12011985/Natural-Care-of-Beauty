@@ -206,6 +206,7 @@ export default function App() {
   ]);
 
   const [selectedCategory, setSelectedCategory] = useState('All Products');
+  const [cartQuickCategory, setCartQuickCategory] = useState('All Products');
   const categories = ['All Products', 'eye care', 'screen care', 'makeover'];
 
   const filteredProducts = selectedCategory === 'All Products' 
@@ -1603,6 +1604,48 @@ export default function App() {
                       ))}
                     </div>
                   )}
+
+                  {/* Quick Shop Section */}
+                  <div className="mt-10 border-t border-slate-100 pt-8">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Quick Add More</h3>
+                      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar max-w-[200px]">
+                        {categories.map(cat => (
+                          <button 
+                            key={cat}
+                            onClick={() => setCartQuickCategory(cat)}
+                            className={`whitespace-nowrap px-3 py-1 rounded-full text-[9px] font-bold uppercase transition-all ${
+                              cartQuickCategory === cat 
+                                ? 'bg-pink-500 text-white shadow-lg shadow-pink-500/20' 
+                                : 'bg-slate-50 text-slate-400 hover:bg-slate-100'
+                            }`}
+                          >
+                            {cat === 'All Products' ? 'All' : cat}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar -mx-2 px-2">
+                      {productsList
+                        .filter(p => cartQuickCategory === 'All Products' || p.category === cartQuickCategory)
+                        .map(product => (
+                          <div key={product.id} className="min-w-[140px] bg-white border border-slate-100 rounded-xl p-2 flex flex-col shadow-sm">
+                            <div className="w-full h-20 rounded-lg overflow-hidden mb-2">
+                              <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                            </div>
+                            <h4 className="text-[10px] font-bold text-slate-900 truncate uppercase mt-1">{product.name}</h4>
+                            <p className="text-[10px] font-black text-pink-600 mt-1">{formatPrice(product.price)}</p>
+                            <button 
+                              onClick={() => addToCart(product)}
+                              className="mt-2 w-full py-2 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-pink-500 transition-all flex items-center justify-center gap-1"
+                            >
+                              <Plus className="w-3 h-3" /> Add
+                            </button>
+                          </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="p-6 border-t border-slate-100 bg-slate-50/50">
