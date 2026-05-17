@@ -75,6 +75,11 @@ interface Order {
   timestamp: string;
   deliveryCharge: number;
   totalAmount: number;
+  dateFields: {
+    day: string;
+    month: string;
+    year: string;
+  };
 }
 
 // Currency Formatter Utility
@@ -94,6 +99,9 @@ export default function App() {
   const [showSlip, setShowSlip] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [slipDay, setSlipDay] = useState('');
+  const [slipMonth, setSlipMonth] = useState('');
+  const [slipYear, setSlipYear] = useState('');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([
     { id: 'chat-1', customerName: 'Alex M.', lastMessage: 'Is the rosehip oil in stock?', unreadCount: 1 },
@@ -170,7 +178,12 @@ export default function App() {
       status: 'Pending',
       timestamp: new Date().toLocaleString(),
       deliveryCharge: deliveryCharge,
-      totalAmount: totalAmount
+      totalAmount: totalAmount,
+      dateFields: {
+        day: new Date().getDate().toString(),
+        month: (new Date().getMonth() + 1).toString(),
+        year: new Date().getFullYear().toString()
+      }
     };
     setOrders(prev => [newOrder, ...prev]);
 
@@ -1053,25 +1066,87 @@ export default function App() {
                         <h1 className="text-xl font-black text-slate-900 tracking-tight uppercase tracking-widest">Digital Delivery Slips</h1>
                         <p className="text-slate-500 text-[10px] font-bold uppercase mt-1 tracking-wider">Automated record of all generated transaction slips.</p>
                       </div>
-                      <div className="w-full md:w-64">
-                         <input 
+                      <div className="flex flex-wrap gap-2 w-full md:w-auto">
+                        <select 
+                          value={slipDay}
+                          onChange={(e) => setSlipDay(e.target.value)}
+                          className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-[10px] font-bold uppercase tracking-widest focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none"
+                        >
+                          <option value="">Day</option>
+                          {Array.from({ length: 31 }, (_, i) => (i + 1).toString()).map(d => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </select>
+
+                        <select 
+                          value={slipMonth}
+                          onChange={(e) => setSlipMonth(e.target.value)}
+                          className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-[10px] font-bold uppercase tracking-widest focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none"
+                        >
+                          <option value="">Month</option>
+                          {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
+                            <option key={m} value={(i + 1).toString()}>{m}</option>
+                          ))}
+                        </select>
+
+                        <select 
+                          value={slipYear}
+                          onChange={(e) => setSlipYear(e.target.value)}
+                          className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-[10px] font-bold uppercase tracking-widest focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none"
+                        >
+                          <option value="">Year</option>
+                          {['2024', '2025', '2026'].map(y => (
+                            <option key={y} value={y}>{y}</option>
+                          ))}
+                        </select>
+
+                        <input 
                           type="text" 
                           placeholder="Search Slip ID / Customer..."
-                          className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-[10px] font-bold uppercase tracking-widest focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none"
+                          className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-[10px] font-bold uppercase tracking-widest focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none min-w-[200px]"
                           onChange={(e) => setOrderSearchQuery(e.target.value)}
                         />
+
+                        {(slipDay || slipMonth || slipYear || orderSearchQuery) && (
+                          <button 
+                            onClick={() => {
+                              setSlipDay('');
+                              setSlipMonth('');
+                              setSlipYear('');
+                              setOrderSearchQuery('');
+                            }}
+                            className="p-2 text-pink-500 hover:bg-pink-50 rounded-xl transition-all"
+                            title="Clear Filters"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {orders.filter(o => o.orderNumber.toLowerCase().includes(orderSearchQuery.toLowerCase()) || o.customerName.toLowerCase().includes(orderSearchQuery.toLowerCase())).length === 0 ? (
+                      {orders.filter(o => {
+                        const matchesSearch = o.orderNumber.toLowerCase().includes(orderSearchQuery.toLowerCase()) || 
+                                             o.customerName.toLowerCase().includes(orderSearchQuery.toLowerCase());
+                        const matchesDay = slipDay ? o.dateFields?.day === slipDay : true;
+                        const matchesMonth = slipMonth ? o.dateFields?.month === slipMonth : true;
+                        const matchesYear = slipYear ? o.dateFields?.year === slipYear : true;
+                        return matchesSearch && matchesDay && matchesMonth && matchesYear;
+                      }).length === 0 ? (
                         <div className="col-span-full py-20 text-center bg-white rounded-2xl border border-dashed border-slate-200">
                           <Printer className="w-8 h-8 text-slate-300 mx-auto mb-3" />
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No slips archived yet</p>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No slips found matching your filters</p>
                         </div>
                       ) : (
                         orders
-                          .filter(o => o.orderNumber.toLowerCase().includes(orderSearchQuery.toLowerCase()) || o.customerName.toLowerCase().includes(orderSearchQuery.toLowerCase()))
+                          .filter(o => {
+                            const matchesSearch = o.orderNumber.toLowerCase().includes(orderSearchQuery.toLowerCase()) || 
+                                                 o.customerName.toLowerCase().includes(orderSearchQuery.toLowerCase());
+                            const matchesDay = slipDay ? o.dateFields?.day === slipDay : true;
+                            const matchesMonth = slipMonth ? o.dateFields?.month === slipMonth : true;
+                            const matchesYear = slipYear ? o.dateFields?.year === slipYear : true;
+                            return matchesSearch && matchesDay && matchesMonth && matchesYear;
+                          })
                           .map((order) => (
                           <div key={order.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col hover:border-pink-200 transition-all group">
                             <div className="flex justify-between items-start mb-6">
