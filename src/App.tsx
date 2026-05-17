@@ -19,11 +19,29 @@ import {
   ArrowLeft,
   Check,
   Printer,
-  Truck
+  Truck,
+  MessageSquare,
+  Send,
+  User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Types
+interface Message {
+  id: string;
+  text: string;
+  senderId: string;
+  senderName: string;
+  isAdmin: boolean;
+  timestamp: string;
+}
+
+interface ChatSession {
+  id: string;
+  customerName: string;
+  lastMessage: string;
+  unreadCount: number;
+}
 interface Product {
   id: string;
   name: string;
@@ -64,7 +82,7 @@ const formatPrice = (price: number) => {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'store' | 'admin' | 'checkout' | 'success' | 'tracking'>('store');
-  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'products' | 'members' | 'status' | 'plans'>('products');
+  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'products' | 'members' | 'status' | 'plans' | 'chat'>('products');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(true); // Default to true for demo based on user email in metadata
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -74,6 +92,28 @@ export default function App() {
   const [showSlip, setShowSlip] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [sessions, setSessions] = useState<ChatSession[]>([
+    { id: 'chat-1', customerName: 'Alex M.', lastMessage: 'Is the rosehip oil in stock?', unreadCount: 1 },
+    { id: 'chat-2', customerName: 'David Wu', lastMessage: 'Thank you for the fast shipping!', unreadCount: 0 },
+  ]);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Record<string, Message[]>>({
+    'chat-1': [
+      { id: 'm1', text: 'Hello, I have a question about the Rosehip oil.', senderId: 'user1', senderName: 'Alex M.', isAdmin: false, timestamp: '10:00 AM' },
+      { id: 'm2', text: 'Sure! How can we help?', senderId: 'admin', senderName: 'Admin', isAdmin: true, timestamp: '10:02 AM' },
+      { id: 'm3', text: 'Is the rosehip oil in stock?', senderId: 'user1', senderName: 'Alex M.', isAdmin: false, timestamp: '10:05 AM' },
+    ],
+    'chat-2': [
+      { id: 'm4', text: 'Hi, when will my order be shipped?', senderId: 'user2', senderName: 'David Wu', isAdmin: false, timestamp: 'Yesterday' },
+      { id: 'm5', text: 'It was shipped this morning! You should receive it soon.', senderId: 'admin', senderName: 'Admin', isAdmin: true, timestamp: 'Yesterday' },
+    ]
+  });
+  const [newMessage, setNewMessage] = useState('');
+  const [visitorChatId] = useState(`visitor-${Math.floor(1000 + Math.random() * 9000)}`);
+  const [visitorMessages, setVisitorMessages] = useState<Message[]>([
+    { id: 'v1', text: 'Hello! How can we help you today?', senderId: 'admin', senderName: 'Admin', isAdmin: true, timestamp: 'Just now' }
+  ]);
 
   // Members State
   const [memberData, setMemberData] = useState<Member[]>([
@@ -212,6 +252,58 @@ export default function App() {
       return [...prev, { ...product, quantity: 1 }];
     });
     setIsCartOpen(true);
+  };
+
+  const handleSendVisitorMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+    
+    const msg: Message = {
+      id: Date.now().toString(),
+      text: newMessage,
+      senderId: visitorChatId,
+      senderName: 'Me',
+      isAdmin: false,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    
+    setVisitorMessages(prev => [...prev, msg]);
+    setNewMessage('');
+
+    // Simulate Admin Response for demo
+    setTimeout(() => {
+      const autoReply: Message = {
+        id: (Date.now() + 1).toString(),
+        text: "Thanks for your message! Our team will get back to you shortly.",
+        senderId: 'admin',
+        senderName: 'Admin',
+        isAdmin: true,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setVisitorMessages(prev => [...prev, autoReply]);
+    }, 1500);
+  };
+
+  const handleSendAdminMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !activeChatId) return;
+    
+    const msg: Message = {
+      id: Date.now().toString(),
+      text: newMessage,
+      senderId: 'admin',
+      senderName: 'Admin',
+      isAdmin: true,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    
+    setMessages(prev => ({
+      ...prev,
+      [activeChatId]: [...(prev[activeChatId] || []), msg]
+    }));
+    
+    setSessions(prev => prev.map(s => s.id === activeChatId ? { ...s, lastMessage: newMessage, unreadCount: 0 } : s));
+    setNewMessage('');
   };
 
   const removeFromCart = (productId: string) => {
@@ -515,6 +607,15 @@ export default function App() {
                   >
                     Membership Plans
                   </button>
+                  <button 
+                    onClick={() => setAdminSubTab('chat')}
+                    className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${adminSubTab === 'chat' ? 'border-pink-500 text-pink-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                  >
+                    Live Chat
+                    {sessions.some(s => s.unreadCount > 0) && (
+                      <span className="ml-2 w-2 h-2 bg-pink-500 rounded-full inline-block"></span>
+                    )}
+                  </button>
                 </div>
 
                 {adminSubTab === 'status' && (
@@ -809,6 +910,104 @@ export default function App() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </motion.div>
+                )}
+
+                {adminSubTab === 'chat' && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-[600px] border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm flex">
+                    {/* Sessions Sidebar */}
+                    <div className="w-80 border-r border-slate-100 flex flex-col">
+                      <div className="p-4 border-b border-slate-100 bg-slate-50">
+                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Active Conversations</h3>
+                      </div>
+                      <div className="flex-1 overflow-auto">
+                        {sessions.map((session) => (
+                          <button 
+                            key={session.id}
+                            onClick={() => setActiveChatId(session.id)}
+                            className={`w-full p-4 flex items-start gap-3 border-b border-slate-50 transition-all ${activeChatId === session.id ? 'bg-pink-50/50' : 'hover:bg-slate-50'}`}
+                          >
+                            <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                              <User className="w-5 h-5 text-slate-400" />
+                            </div>
+                            <div className="flex-1 text-left min-w-0">
+                              <div className="flex justify-between items-start mb-0.5">
+                                <p className={`text-[12px] font-black uppercase tracking-tight truncate ${activeChatId === session.id ? 'text-pink-600' : 'text-slate-900'}`}>
+                                  {session.customerName}
+                                </p>
+                                {session.unreadCount > 0 && (
+                                  <span className="bg-pink-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                                    {session.unreadCount}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-slate-500 truncate font-medium">{session.lastMessage}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Chat Area */}
+                    <div className="flex-1 flex flex-col bg-slate-50/30">
+                      {activeChatId ? (
+                        <>
+                          <div className="p-4 bg-white border-b border-slate-100 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-pink-100 flex items-center justify-center">
+                                <User className="w-4 h-4 text-pink-500" />
+                              </div>
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-widest text-slate-900">
+                                  {sessions.find(s => s.id === activeChatId)?.customerName}
+                                </p>
+                                <p className="text-[9px] text-green-500 font-bold uppercase tracking-wider flex items-center gap-1">
+                                  <span className="w-1 h-1 bg-green-500 rounded-full"></span> Online
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex-1 overflow-auto p-6 space-y-4">
+                            {messages[activeChatId]?.map((msg) => (
+                              <div key={msg.id} className={`flex ${msg.isAdmin ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[70%] p-3 rounded-2xl text-[11px] font-medium leading-relaxed shadow-sm ${
+                                  msg.isAdmin ? 'bg-pink-500 text-white shadow-pink-500/10' : 'bg-white text-slate-700 border border-slate-100'
+                                }`}>
+                                  {msg.text}
+                                  <p className={`text-[9px] mt-1 ${msg.isAdmin ? 'text-pink-100' : 'text-slate-400'}`}>{msg.timestamp}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <form onSubmit={handleSendAdminMessage} className="p-4 bg-white border-t border-slate-100">
+                            <div className="flex gap-3">
+                              <input 
+                                type="text" 
+                                placeholder="Start typing your response..."
+                                value={newMessage}
+                                onChange={(e) => setNewMessage(e.target.value)}
+                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[11px] font-medium focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all"
+                              />
+                              <button type="submit" className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold text-[10px] uppercase tracking-[0.2em] hover:bg-pink-600 transition-all flex items-center gap-2">
+                                <Send className="w-3.5 h-3.5" /> Send
+                              </button>
+                            </div>
+                          </form>
+                        </>
+                      ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+                          <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                            <MessageSquare className="w-8 h-8 text-slate-300" />
+                          </div>
+                          <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Select a Conversation</h3>
+                          <p className="text-[11px] text-slate-500 max-w-xs mt-1 font-medium italic">
+                            Choose a customer from the sidebar to view their message history and start a live session.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}
@@ -1352,6 +1551,68 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* Floating Chat Widget for Customers */}
+      <div className="fixed bottom-6 right-6 z-[150]">
+        <AnimatePresence>
+          {isChatOpen && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              className="absolute bottom-16 right-0 w-80 h-96 bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
+            >
+              <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <h3 className="text-xs font-black uppercase tracking-widest">Live Support</h3>
+                </div>
+                <button onClick={() => setIsChatOpen(false)}>
+                  <X className="w-4 h-4 text-slate-400 hover:text-white" />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-auto p-4 space-y-4 bg-slate-50/50">
+                {visitorMessages.map((msg) => (
+                  <div key={msg.id} className={`flex ${msg.isAdmin ? 'justify-start' : 'justify-end'}`}>
+                    <div className={`max-w-[80%] p-3 rounded-2xl text-[11px] font-medium leading-relaxed ${
+                      msg.isAdmin ? 'bg-white text-slate-700 border border-slate-100 shadow-sm' : 'bg-pink-500 text-white shadow-lg shadow-pink-500/10'
+                    }`}>
+                      {msg.text}
+                      <p className={`text-[9px] mt-1 ${msg.isAdmin ? 'text-slate-400' : 'text-pink-100'}`}>{msg.timestamp}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <form onSubmit={handleSendVisitorMessage} className="p-3 border-t border-slate-100 bg-white">
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="Type your message..."
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-[11px] font-medium focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none transition-all"
+                  />
+                  <button type="submit" className="p-2.5 bg-pink-500 text-white rounded-xl hover:bg-pink-600 transition-colors shadow-lg shadow-pink-500/20">
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <button 
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          className="w-14 h-14 bg-slate-900 text-white rounded-full flex items-center justify-center shadow-2xl hover:bg-pink-500 transition-all group relative"
+        >
+          {isChatOpen ? <X className="w-6 h-6" /> : <MessageSquare className="w-6 h-6" />}
+          {!isChatOpen && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 bg-pink-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white animate-bounce">1</span>
+          )}
+        </button>
+      </div>
     </div>
   );
 }

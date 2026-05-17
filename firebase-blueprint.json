@@ -38,6 +38,19 @@
         "status": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       }
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Chat message",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "isAdmin": { "type": "boolean" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["text", "senderId", "timestamp"]
     }
   },
   "firestore": {
@@ -52,6 +65,10 @@
     "/memberships": {
       "schema": "Membership",
       "description": "User memberships and signups"
+    },
+    "/chats/{chatId}/messages": {
+      "schema": "Message",
+      "description": "Messages within a chat session"
     }
   }
 }
