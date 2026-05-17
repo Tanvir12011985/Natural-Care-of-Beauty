@@ -1537,12 +1537,12 @@ export default function App() {
                       <span>{formatPrice(cartTotal)}</span>
                     </div>
                     <div className="flex justify-between text-xs text-slate-500 font-medium">
-                      <span>Delivery</span>
-                      <span className="text-green-600 uppercase font-black text-[9px]">Free</span>
+                      <span>Delivery ({checkoutForm.location})</span>
+                      <span>{formatPrice(deliveryCharge)}</span>
                     </div>
                     <div className="flex justify-between pt-2 border-t border-slate-100">
                       <span className="font-black text-slate-900 uppercase text-[12px]">Total Amount</span>
-                      <span className="font-black text-pink-600 text-lg">{formatPrice(cartTotal)}</span>
+                      <span className="font-black text-pink-600 text-lg">{formatPrice(totalAmount)}</span>
                     </div>
                   </div>
                   <button 
