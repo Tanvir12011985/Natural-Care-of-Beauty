@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helpers
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { return isSignedIn() && request.auth.token.email == "tanvir.khc@gmail.com"; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // Validation Blueprints
+    function isValidProduct(data) {
+      return data.keys().hasAll(['name', 'price'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.price is number && data.price >= 0
+        && (data.get('description', '') is string && data.get('description', '').size() <= 1000)
+        && (data.get('imageUrl', '') is string && data.get('imageUrl', '').size() <= 500)
+        && (data.get('category', '') is string && data.get('category', '').size() <= 50);
+    }
+
+    function isValidSetting(data) {
+      return data.get('storeName', 'Nexus Store') is string && data.get('storeName', '').size() <= 50
+        && (data.get('currency', 'TK') in ['TK', '$']);
+    }
+
+    function isValidMembership(data) {
+      return data.keys().hasAll(['email', 'plan', 'status'])
+        && data.email is string && data.email.size() <= 100
+        && data.plan is string && data.plan.size() <= 50
+        && data.status is string && data.status.size() <= 20;
+    }
+
+    // Products
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidProduct(incoming()) && isValidId(productId);
+    }
+
+    // Settings
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidSetting(incoming()) && isValidId(settingId);
+    }
+
+    // Memberships
+    match /memberships/{membershipId} {
+      // Customers can create memberships (Sign up)
+      allow create: if isValidMembership(incoming()) && isValidId(membershipId);
+      // Admin controls
+      allow read, update, delete: if isAdmin();
+    }
+  }
+}

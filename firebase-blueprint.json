@@ -1,0 +1,54 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Store product",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "category": { "type": "string" },
+        "available": { "type": "boolean" }
+      },
+      "required": ["name", "price"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "Store settings",
+      "type": "object",
+      "properties": {
+        "storeName": { "type": "string" },
+        "bannerUrl": { "type": "string" },
+        "currency": { "type": "string", "enum": ["TK", "$"] }
+      }
+    },
+    "Membership": {
+      "title": "Membership",
+      "description": "Customer membership/order",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "plan": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/products": {
+      "schema": "Product",
+      "description": "Catalog of products"
+    },
+    "/settings": {
+      "schema": "Setting",
+      "description": "Global store configuration"
+    },
+    "/memberships": {
+      "schema": "Membership",
+      "description": "User memberships and signups"
+    }
+  }
+}
