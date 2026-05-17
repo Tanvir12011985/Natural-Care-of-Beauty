@@ -31,6 +31,9 @@
       "properties": {
         "userId": { "type": "string" },
         "email": { "type": "string" },
+        "name": { "type": "string" },
+        "mobile": { "type": "string" },
+        "address": { "type": "string" },
         "plan": { "type": "string" },
         "status": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }

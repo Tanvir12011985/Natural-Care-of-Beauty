@@ -38,6 +38,9 @@ interface CartItem extends Product {
 
 interface Member {
   id: string;
+  name: string;
+  mobile: string;
+  address: string;
   email: string;
   plan: string;
   status: string;
@@ -58,6 +61,13 @@ export default function App() {
   const [orderNumber, setOrderNumber] = useState('');
   const [lastOrderItems, setLastOrderItems] = useState<CartItem[]>([]);
   const [showSlip, setShowSlip] = useState(false);
+
+  // Members State
+  const [memberData, setMemberData] = useState<Member[]>([
+    { id: 'm1', name: 'Alex M.', mobile: '01700000001', address: '123 Dhaka St', email: 'alex.m@example.com', plan: 'Premium', status: 'Pending Review', createdAt: '2024-05-01' },
+    { id: 'm2', name: 'SJ Enks', mobile: '01700000002', address: '456 Chittagong Rd', email: 'sj.enks@gmail.com', plan: 'Elite', status: 'Active', createdAt: '2024-01-15' },
+    { id: 'm3', name: 'David Wu', mobile: '01700000003', address: '789 Sylhet Ave', email: 'wu.david@tech.io', plan: 'Standard', status: 'Pending Review', createdAt: '2024-05-10' },
+  ]);
 
   // Checkout Form State
   const [checkoutForm, setCheckoutForm] = useState({
@@ -81,6 +91,20 @@ export default function App() {
     const ordNum = `ORD-${Math.floor(100000 + Math.random() * 900000)}`;
     setOrderNumber(ordNum);
     setLastOrderItems([...cart]);
+    
+    // Auto-add Membership
+    const newMember: Member = {
+      id: `m${Date.now()}`,
+      name: checkoutForm.name,
+      mobile: checkoutForm.mobile,
+      address: checkoutForm.address,
+      email: 'customer@example.com', // Placeholder or real email if available
+      plan: 'Basic', // Default plan for new shoppers
+      status: 'Active',
+      createdAt: new Date().toISOString()
+    };
+    setMemberData(prev => [newMember, ...prev]);
+
     setActiveTab('success');
     setCart([]);
   };
@@ -130,11 +154,7 @@ export default function App() {
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  const members: Member[] = [
-    { id: 'm1', email: 'alex.m@example.com', plan: 'Premium', status: 'Pending Review', createdAt: '2024-05-01' },
-    { id: 'm2', email: 'sj.enks@gmail.com', plan: 'Elite', status: 'Active', createdAt: '2024-01-15' },
-    { id: 'm3', email: 'wu.david@tech.io', plan: 'Standard', status: 'Pending Review', createdAt: '2024-05-10' },
-  ];
+
 
   return (
     <div className="flex h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden text-[13px]">
@@ -374,10 +394,40 @@ export default function App() {
 
                 <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                   <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                    <h3 className="font-bold text-slate-800">Operational Overview</h3>
+                    <h3 className="font-bold text-slate-800">Recent Memberships (Auto-added)</h3>
                   </div>
-                  <div className="p-6">
-                    <p className="text-xs text-slate-500 leading-relaxed font-medium">All systems are currently performing within optimal parameters. Security rules are active and strictly enforced across all database nodes.</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="text-[10px] text-slate-400 font-bold uppercase bg-white border-b border-slate-100">
+                        <tr>
+                          <th className="px-6 py-3">Customer</th>
+                          <th className="px-6 py-3">Mobile</th>
+                          <th className="px-6 py-3">Address</th>
+                          <th className="px-6 py-3">Status</th>
+                          <th className="px-6 py-3 text-right">Plan</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-sm text-slate-600">
+                        {memberData.map((member) => (
+                          <tr key={member.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                            <td className="px-6 py-4">
+                              <p className="font-medium text-slate-900">{member.name}</p>
+                              <p className="text-[10px] text-slate-400">{member.email}</p>
+                            </td>
+                            <td className="px-6 py-4 text-[11px] font-mono">{member.mobile}</td>
+                            <td className="px-6 py-4 text-[11px] max-w-[200px] truncate">{member.address}</td>
+                            <td className="px-6 py-4">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                member.status === 'Active' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'
+                              }`}>
+                                {member.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right font-medium text-slate-900">{member.plan}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </motion.div>

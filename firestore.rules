@@ -29,8 +29,11 @@ service cloud.firestore {
     }
 
     function isValidMembership(data) {
-      return data.keys().hasAll(['email', 'plan', 'status'])
+      return data.keys().hasAll(['email', 'name', 'mobile', 'address', 'plan', 'status'])
         && data.email is string && data.email.size() <= 100
+        && data.name is string && data.name.size() <= 100
+        && data.mobile is string && data.mobile.size() <= 20
+        && data.address is string && data.address.size() <= 500
         && data.plan is string && data.plan.size() <= 50
         && data.status is string && data.status.size() <= 20;
     }
