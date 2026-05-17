@@ -1,77 +1,108 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Global Safety Net
+    // 0. Global Safety Net
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Helpers
-    function isSignedIn() { return request.auth != null; }
-    function isAdmin() { return isSignedIn() && request.auth.token.email == "tanvir.khc@gmail.com"; }
-    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
-    function incoming() { return request.resource.data; }
-    function existing() { return resource.data; }
-
-    // Validation Blueprints
-    function isValidProduct(data) {
-      return data.keys().hasAll(['name', 'price'])
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
-        && data.price is number && data.price >= 0
-        && (data.get('description', '') is string && data.get('description', '').size() <= 1000)
-        && (data.get('imageUrl', '') is string && data.get('imageUrl', '').size() <= 500)
-        && (data.get('category', '') is string && data.get('category', '').size() <= 50);
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    function isValidSetting(data) {
-      return data.get('storeName', 'Nexus Store') is string && data.get('storeName', '').size() <= 50
-        && (data.get('currency', 'TK') in ['TK', '$']);
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
     }
 
-    function isValidMembership(data) {
-      return data.keys().hasAll(['email', 'name', 'mobile', 'address', 'plan', 'status'])
-        && data.email is string && data.email.size() <= 100
-        && data.name is string && data.name.size() <= 100
-        && data.mobile is string && data.mobile.size() <= 20
-        && data.address is string && data.address.size() <= 500
-        && data.plan is string && data.plan.size() <= 50
-        && data.status is string && data.status.size() <= 20;
+    function isAdmin() {
+      // For this app, we trust the owner email or an entry in admins collection
+      return isSignedIn() && (
+        request.auth.token.email == 'tanvir.khc@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
     }
 
-    function isValidMessage(data) {
-      return data.keys().hasAll(['text', 'senderId', 'timestamp'])
-        && data.text is string && data.text.size() > 0 && data.text.size() <= 1000
-        && data.senderId is string && data.senderId.size() <= 128
-        && (data.get('senderName', '') is string && data.get('senderName', '').size() <= 100)
-        && (data.get('isAdmin', false) is bool)
-        && data.timestamp is string;
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Collections ---
 
     // Products
     match /products/{productId} {
+      function isValidProduct(p) {
+        return p.name is string && p.name.size() > 0 && p.name.size() <= 200 &&
+               p.price is number && p.price >= 0 &&
+               p.buyingPrice is number && p.buyingPrice >= 0 &&
+               p.category is string &&
+               p.imageUrl is string && p.imageUrl.size() <= 2000;
+      }
+
       allow read: if true;
-      allow write: if isAdmin() && isValidProduct(incoming()) && isValidId(productId);
+      allow create: if isAdmin() && isValidProduct(incoming()) && isValidId(productId);
+      allow update: if isAdmin() && isValidProduct(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'price', 'buyingPrice', 'description', 'imageUrl', 'category'])
+      );
+      allow delete: if isAdmin();
     }
 
-    // Settings
-    match /settings/{settingId} {
-      allow read: if true;
-      allow write: if isAdmin() && isValidSetting(incoming()) && isValidId(settingId);
+    // Orders
+    match /orders/{orderId} {
+      function isValidOrder(o) {
+        return o.orderNumber is string && o.orderNumber.size() > 0 &&
+               o.invoiceNumber is string && o.invoiceNumber.size() > 0 &&
+               o.customerName is string && o.customerName.size() > 0 &&
+               o.status in ['Pending', 'Packing done', 'Hand over to the currier agent', 'delivery done'] &&
+               o.totalAmount is number && o.totalAmount >= 0;
+      }
+
+      allow create: if isValidOrder(incoming()) && isValidId(orderId);
+      allow read: if isAdmin(); // Only admins can see orders/slips
+      allow update: if isAdmin() && isValidOrder(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['status'])
+      );
+      allow delete: if isAdmin();
     }
 
-    // Memberships
-    match /memberships/{membershipId} {
-      // Customers can create memberships (Sign up)
-      allow create: if isValidMembership(incoming()) && isValidId(membershipId);
-      // Admin controls
-      allow read, update, delete: if isAdmin();
+    // Members
+    match /members/{memberId} {
+      allow read, write: if isAdmin();
     }
 
     // Chats
-    match /chats/{chatId}/messages/{messageId} {
-      allow read: if true; // In demo, allow reading if you have the ID
-      allow create: if isValidMessage(incoming()) && isValidId(messageId);
-      allow update, delete: if isAdmin();
+    match /chats/{sessionId} {
+      allow read, write: if isAdmin() || (isSignedIn() && sessionId == request.auth.uid) || sessionId.startsWith('visitor-');
+      
+      match /messages/{messageId} {
+        function isValidMessage(m) {
+          return m.text is string && m.text.size() > 0 && m.text.size() <= 1000 &&
+                 m.senderId is string &&
+                 m.isAdmin is bool &&
+                 m.timestamp is string &&
+                 m.sessionId == sessionId;
+        }
+
+        allow read: if isAdmin() || (isSignedIn() && sessionId == request.auth.uid) || sessionId.startsWith('visitor-');
+        allow create: if isValidMessage(incoming()) && (
+          (incoming().isAdmin == false && (sessionId == incoming().senderId || sessionId == request.auth.uid || sessionId.startsWith('visitor-'))) ||
+          isAdmin()
+        );
+      }
+    }
+    
+    // Admins bootstrap
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if false; // Only manageable via console or service account
     }
   }
 }

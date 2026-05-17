@@ -25,6 +25,62 @@ import {
   User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  updateDoc, 
+  deleteDoc, 
+  onSnapshot, 
+  query, 
+  orderBy, 
+  addDoc,
+  serverTimestamp,
+  getDocFromServer
+} from 'firebase/firestore';
+import { 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  onAuthStateChanged,
+  User as FirebaseUser
+} from 'firebase/auth';
+import { db, auth } from './lib/firebase';
+
+// Firebase Error Handling
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 // Types
 interface Message {
@@ -72,10 +128,14 @@ interface Order {
   orderNumber: string;
   invoiceNumber: string;
   customerName: string;
+  customerMobile: string;
+  customerAddress: string;
+  paymentMethod: string;
   status: 'Pending' | 'Packing done' | 'Hand over to the currier agent' | 'delivery done';
   timestamp: string;
   deliveryCharge: number;
   totalAmount: number;
+  items: CartItem[];
   dateFields: {
     day: string;
     month: string;
@@ -92,7 +152,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'store' | 'admin' | 'checkout' | 'success' | 'tracking'>('store');
   const [adminSubTab, setAdminSubTab] = useState<'overview' | 'products' | 'members' | 'status' | 'plans' | 'chat' | 'slips'>('products');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(true); // Default to true for demo based on user email in metadata
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false); 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
@@ -103,6 +164,12 @@ export default function App() {
   const [slipDay, setSlipDay] = useState('');
   const [slipMonth, setSlipMonth] = useState('');
   const [slipYear, setSlipYear] = useState('');
+  const [selectedSlipOrder, setSelectedSlipOrder] = useState<Order | null>(null);
+
+  const handleOpenSlip = (order: Order) => {
+    setSelectedSlipOrder(order);
+    setShowSlip(true);
+  };
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([
     { id: 'chat-1', customerName: 'Alex M.', lastMessage: 'Is the rosehip oil in stock?', unreadCount: 1 },
@@ -127,11 +194,7 @@ export default function App() {
   ]);
 
   // Members State
-  const [memberData, setMemberData] = useState<Member[]>([
-    { id: 'm1', name: 'Alex M.', mobile: '01700000001', address: '123 Dhaka St', email: 'alex.m@example.com', plan: 'Premium', status: 'Pending Review', createdAt: '2024-05-01' },
-    { id: 'm2', name: 'SJ Enks', mobile: '01700000002', address: '456 Chittagong Rd', email: 'sj.enks@gmail.com', plan: 'Elite', status: 'Active', createdAt: '2024-01-15' },
-    { id: 'm3', name: 'David Wu', mobile: '01700000003', address: '789 Sylhet Ave', email: 'wu.david@tech.io', plan: 'Standard', status: 'Pending Review', createdAt: '2024-05-10' },
-  ]);
+  const [memberData, setMemberData] = useState<Member[]>([]);
 
   // Checkout Form State
   const [checkoutForm, setCheckoutForm] = useState({
@@ -145,66 +208,148 @@ export default function App() {
   });
 
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setIsAdmin(u?.email === 'tanvir.khc@gmail.com');
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const login = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error("Login failed", error);
+    }
+  };
+
+  const logout = () => auth.signOut();
+
+  // Fetch Products
+  useEffect(() => {
+    const q = query(collection(db, 'products'), orderBy('name'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items: Product[] = [];
+      snapshot.forEach(doc => {
+        items.push({ ...doc.data(), id: doc.id } as Product);
+      });
+      setProductsList(items);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'products'));
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch Orders
+  useEffect(() => {
+    const q = query(collection(db, 'orders'), orderBy('timestamp', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items: Order[] = [];
+      snapshot.forEach(doc => {
+        items.push({ ...doc.data(), id: doc.id } as Order);
+      });
+      setOrders(items);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'orders'));
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch Members
+  useEffect(() => {
+    if (!isAdmin) return;
+    const q = query(collection(db, 'members'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items: Member[] = [];
+      snapshot.forEach(doc => {
+        items.push({ ...doc.data(), id: doc.id } as Member);
+      });
+      setMemberData(items);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'members'));
+    return () => unsubscribe();
+  }, [isAdmin]);
+
+  // Initial connection test
+  useEffect(() => {
+    async function testConnection() {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if(error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration.");
+        }
+      }
+    }
+    testConnection();
+  }, []);
+
+  useEffect(() => {
     if (activeTab === 'checkout' && !checkoutForm.invoiceNumber) {
       const inv = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
       setCheckoutForm(prev => ({ ...prev, invoiceNumber: inv }));
     }
   }, [activeTab]);
 
-  const handleOrderSubmit = (e: React.FormEvent) => {
+  const handleOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const ordNum = `ORD-${Math.floor(100000 + Math.random() * 900000)}`;
     setOrderNumber(ordNum);
     setLastOrderItems([...cart]);
     
     // Auto-add Membership
-    const newMember: Member = {
-      id: `m${Date.now()}`,
+    const newMember: Omit<Member, 'id'> = {
       name: checkoutForm.name,
       mobile: checkoutForm.mobile,
       address: checkoutForm.address,
-      email: 'customer@example.com', // Placeholder or real email if available
-      plan: 'Basic', // Default plan for new shoppers
+      email: user?.email || 'customer@example.com',
+      plan: 'Basic',
       status: 'Active',
       createdAt: new Date().toISOString()
     };
-    setMemberData(prev => [newMember, ...prev]);
+    
+    try {
+      await addDoc(collection(db, 'members'), newMember);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'members');
+    }
 
-    // Add to Tracking
-    const newOrder: Order = {
-      id: Date.now().toString(),
+    // Add to Orders
+    const newOrder: Omit<Order, 'id'> = {
       orderNumber: ordNum,
       invoiceNumber: checkoutForm.invoiceNumber,
       customerName: checkoutForm.name,
+      customerMobile: checkoutForm.mobile,
+      customerAddress: checkoutForm.address,
+      paymentMethod: checkoutForm.paymentMethod,
       status: 'Pending',
       timestamp: new Date().toLocaleString(),
       deliveryCharge: deliveryCharge,
       totalAmount: totalAmount,
+      items: [...cart],
       dateFields: {
         day: new Date().getDate().toString(),
         month: (new Date().getMonth() + 1).toString(),
         year: new Date().getFullYear().toString()
       }
     };
-    setOrders(prev => [newOrder, ...prev]);
+    
+    try {
+      await addDoc(collection(db, 'orders'), newOrder);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'orders');
+    }
 
     setActiveTab('success');
     setCart([]);
   };
 
-  const updateOrderStatus = (orderId: string, status: Order['status']) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+  const updateOrderStatus = async (orderId: string, status: Order['status']) => {
+    try {
+      await updateDoc(doc(db, 'orders', orderId), { status });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `orders/${orderId}`);
+    }
   };
 
   // Products State
-  const [productsList, setProductsList] = useState<Product[]>([
-    { id: '1', name: 'Organic Rosehip Oil', price: 1200, buyingPrice: 800, description: 'Pure cold-pressed rosehip oil for radiant, youthful skin.', imageUrl: 'https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?w=800&q=80', category: 'screen care' },
-    { id: '2', name: 'Revitalizing Eye Serum', price: 950, buyingPrice: 600, description: 'Caffeine-infused serum to reduce puffiness and dark circles.', imageUrl: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800&q=80', category: 'eye care' },
-    { id: '3', name: 'Mineral Glow Foundation', price: 2100, buyingPrice: 1500, description: 'Lightweight mineral foundation for a natural, flawless finish.', imageUrl: 'https://images.unsplash.com/photo-1596704017254-9b121068fb31?w=800&q=80', category: 'makeover' },
-    { id: '4', name: 'Vitamin C Night Cream', price: 1800, buyingPrice: 1200, description: 'Brightening night cream with stabilized Vitamin C and hyaluronic acid.', imageUrl: 'https://images.unsplash.com/photo-1611080541599-8c6dbde6ed28?w=800&q=80', category: 'screen care' },
-    { id: '5', name: 'Botanical Lash Mascara', price: 1100, buyingPrice: 700, description: 'Volumizing mascara made with clean, eye-safe plant extracts.', imageUrl: 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?w=800&q=80', category: 'eye care' },
-    { id: '6', name: 'Velvet Matte Lipstick', price: 1400, buyingPrice: 900, description: 'Long-lasting matte lipstick enriched with shea butter.', imageUrl: 'https://images.unsplash.com/photo-1586776977607-310e9c725c37?w=800&q=80', category: 'makeover' },
-  ]);
+  const [productsList, setProductsList] = useState<Product[]>([]);
 
   const [selectedCategory, setSelectedCategory] = useState('All Products');
   const categories = ['All Products', 'eye care', 'screen care', 'makeover'];
@@ -235,20 +380,31 @@ export default function App() {
     setIsProductModalOpen(true);
   };
 
-  const handleProductSubmit = (e: React.FormEvent) => {
+  const handleProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingProduct) {
-      setProductsList(prev => prev.map(p => p.id === editingProduct.id ? { ...productForm, id: p.id } : p));
+      try {
+        await updateDoc(doc(db, 'products', editingProduct.id), productForm);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `products/${editingProduct.id}`);
+      }
     } else {
-      const newProduct = { ...productForm, id: Date.now().toString() };
-      setProductsList(prev => [...prev, newProduct]);
+      try {
+        await addDoc(collection(db, 'products'), productForm);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, 'products');
+      }
     }
     setIsProductModalOpen(false);
   };
 
-  const deleteProduct = (id: string) => {
+  const deleteProduct = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
-      setProductsList(prev => prev.filter(p => p.id !== id));
+      try {
+        await deleteDoc(doc(db, 'products', id));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `products/${id}`);
+      }
     }
   };
 
@@ -390,13 +546,31 @@ export default function App() {
         </nav>
 
         <div className="p-4 mt-auto">
-          <div className="bg-slate-800 rounded-lg p-3">
-            <div className="text-[10px] text-slate-400 mb-1 font-bold uppercase tracking-wider">Administrator</div>
-            <div className="text-xs font-medium text-white truncate mb-2">tanvir.khc@gmail.com</div>
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-bold">Verified Status</span>
+          {user ? (
+            <div className="bg-slate-800 rounded-lg p-3">
+              <div className="text-[10px] text-slate-400 mb-1 font-bold uppercase tracking-wider">{isAdmin ? 'Administrator' : 'Customer'}</div>
+              <div className="text-xs font-medium text-white truncate mb-1">{user.email}</div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={`w-1.5 h-1.5 rounded-full ${isAdmin ? 'bg-green-500' : 'bg-blue-500'}`}></div>
+                  <span className="text-[9px] text-slate-400 font-bold uppercase">{isAdmin ? 'Verified' : 'Member'}</span>
+                </div>
+                <button 
+                  onClick={logout}
+                  className="text-[9px] font-black text-pink-500 uppercase tracking-widest hover:text-pink-400"
+                >
+                  Logout
+                </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <button 
+              onClick={login}
+              className="w-full py-3 bg-pink-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-pink-600 transition-all flex items-center justify-center gap-2"
+            >
+              <User className="w-4 h-4" /> Sign In
+            </button>
+          )}
         </div>
       </aside>
 
@@ -1177,9 +1351,7 @@ export default function App() {
                             </div>
 
                             <button 
-                              onClick={() => {
-                                alert(`Opening Slip for ${order.orderNumber}. In a real app, this would show the full PDF or printed slip.`);
-                              }}
+                              onClick={() => handleOpenSlip(order)}
                               className="mt-6 w-full py-3 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 hover:bg-slate-900 hover:text-white transition-all group-hover:bg-pink-500 group-hover:text-white group-hover:border-pink-500 flex items-center justify-center gap-2"
                             >
                               <Printer className="w-3.5 h-3.5" /> View Printed Slip
@@ -1520,7 +1692,10 @@ export default function App() {
 
                 <div className="mt-8 flex flex-col gap-4 w-full max-w-sm">
                   <button 
-                    onClick={() => setShowSlip(true)}
+                    onClick={() => {
+                      const latestOrder = orders[0]; // The one we just added should be first due to orderBy desc
+                      if (latestOrder) handleOpenSlip(latestOrder);
+                    }}
                     className="flex items-center justify-center gap-3 px-8 py-4 bg-pink-500 text-white rounded-xl font-bold text-xs uppercase tracking-[0.3em] hover:bg-pink-600 transition-all shadow-xl shadow-pink-500/20"
                   >
                     <Printer className="w-4 h-4" /> Generate Delivery Slip
@@ -1680,24 +1855,24 @@ export default function App() {
                   <div className="space-y-3 mb-4">
                     <div className="flex justify-between font-bold">
                       <span>ORDER #:</span>
-                      <span>{orderNumber}</span>
+                      <span>{selectedSlipOrder?.orderNumber || 'N/A'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>INVOICE:</span>
-                      <span className="font-mono">{checkoutForm.invoiceNumber}</span>
+                      <span className="font-mono">{selectedSlipOrder?.invoiceNumber || 'N/A'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>DATE:</span>
-                      <span>{checkoutForm.date}</span>
+                      <span>{selectedSlipOrder?.timestamp || 'N/A'}</span>
                     </div>
                   </div>
 
                   {/* Customer Details */}
                   <div className="border-t border-dashed border-slate-300 pt-4 mb-4">
                     <p className="font-black uppercase mb-1">Deliver To:</p>
-                    <p className="font-bold underline">{checkoutForm.name}</p>
-                    <p className="mt-1 leading-tight">{checkoutForm.address}</p>
-                    <p className="mt-1 font-bold">PH: {checkoutForm.mobile}</p>
+                    <p className="font-bold underline">{selectedSlipOrder?.customerName || 'N/A'}</p>
+                    <p className="mt-1 leading-tight">{selectedSlipOrder?.customerAddress || 'N/A'}</p> 
+                    <p className="mt-1 font-bold">PH: {selectedSlipOrder?.customerMobile || 'N/A'}</p>
                   </div>
 
                   {/* Items Table */}
@@ -1711,7 +1886,7 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody className="font-medium">
-                        {lastOrderItems.map(item => (
+                        {(selectedSlipOrder?.items || []).map(item => (
                           <tr key={item.id} className="border-b border-slate-100 last:border-0">
                             <td className="py-2 pr-2">{item.name}</td>
                             <td className="py-2 text-right">{item.quantity}</td>
@@ -1725,19 +1900,19 @@ export default function App() {
                   <div className="border-t border-dashed border-slate-300 pt-4 mb-4">
                     <div className="flex justify-between font-bold mb-1">
                       <span>SUBTOTAL:</span>
-                      <span>{formatPrice(lastOrderItems.reduce((s, i) => s + (i.price * i.quantity), 0))}</span>
+                      <span>{formatPrice((selectedSlipOrder?.items || []).reduce((s, i) => s + (i.price * i.quantity), 0))}</span>
                     </div>
                     <div className="flex justify-between font-bold mb-1">
                       <span>DELIVERY:</span>
-                      <span>{formatPrice(deliveryCharge)}</span>
+                      <span>{formatPrice(selectedSlipOrder?.deliveryCharge || 0)}</span>
                     </div>
                     <div className="flex justify-between font-black text-[12px] border-t border-slate-200 pt-1 mt-1 mb-1">
                       <span>TOTAL:</span>
-                      <span>{formatPrice(totalAmount)}</span>
+                      <span>{formatPrice(selectedSlipOrder?.totalAmount || 0)}</span>
                     </div>
                     <div className="flex justify-between uppercase font-bold text-[8px] text-slate-500 italic mt-2">
                       <span>PAYMENT:</span>
-                      <span>{checkoutForm.paymentMethod}</span>
+                      <span>{selectedSlipOrder?.paymentMethod || 'N/A'}</span>
                     </div>
                   </div>
 
