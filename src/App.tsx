@@ -18,7 +18,8 @@ import {
   Plus,
   ArrowLeft,
   Check,
-  Printer
+  Printer,
+  Truck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -47,13 +48,22 @@ interface Member {
   createdAt: string;
 }
 
+interface Order {
+  id: string;
+  orderNumber: string;
+  invoiceNumber: string;
+  customerName: string;
+  status: 'Pending' | 'Packing done' | 'Hand over to the currier agent' | 'delivery done';
+  timestamp: string;
+}
+
 // Currency Formatter Utility
 const formatPrice = (price: number) => {
   return `TK ${price.toLocaleString()}`;
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'store' | 'membership' | 'admin' | 'checkout' | 'success'>('store');
+  const [activeTab, setActiveTab] = useState<'store' | 'membership' | 'admin' | 'checkout' | 'success' | 'tracking'>('store');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(true); // Default to true for demo based on user email in metadata
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -61,6 +71,7 @@ export default function App() {
   const [orderNumber, setOrderNumber] = useState('');
   const [lastOrderItems, setLastOrderItems] = useState<CartItem[]>([]);
   const [showSlip, setShowSlip] = useState(false);
+  const [orders, setOrders] = useState<Order[]>([]);
 
   // Members State
   const [memberData, setMemberData] = useState<Member[]>([
@@ -105,26 +116,90 @@ export default function App() {
     };
     setMemberData(prev => [newMember, ...prev]);
 
+    // Add to Tracking
+    const newOrder: Order = {
+      id: Date.now().toString(),
+      orderNumber: ordNum,
+      invoiceNumber: checkoutForm.invoiceNumber,
+      customerName: checkoutForm.name,
+      status: 'Pending',
+      timestamp: new Date().toLocaleString()
+    };
+    setOrders(prev => [newOrder, ...prev]);
+
     setActiveTab('success');
     setCart([]);
   };
 
-  // Dummy Data for UI mockup
-  const products: Product[] = [
-    { id: '1', name: 'Organic Rosehip Oil', price: 1200, description: 'Pure cold-pressed rosehip oil for radiant, youthful skin.', imageUrl: 'https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?w=800&q=80', category: 'skin care' },
+  const updateOrderStatus = (orderId: string, status: Order['status']) => {
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+  };
+
+  // Products State
+  const [productsList, setProductsList] = useState<Product[]>([
+    { id: '1', name: 'Organic Rosehip Oil', price: 1200, description: 'Pure cold-pressed rosehip oil for radiant, youthful skin.', imageUrl: 'https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?w=800&q=80', category: 'screen care' },
     { id: '2', name: 'Revitalizing Eye Serum', price: 950, description: 'Caffeine-infused serum to reduce puffiness and dark circles.', imageUrl: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800&q=80', category: 'eye care' },
     { id: '3', name: 'Mineral Glow Foundation', price: 2100, description: 'Lightweight mineral foundation for a natural, flawless finish.', imageUrl: 'https://images.unsplash.com/photo-1596704017254-9b121068fb31?w=800&q=80', category: 'makeover' },
-    { id: '4', name: 'Vitamin C Night Cream', price: 1800, description: 'Brightening night cream with stabilized Vitamin C and hyaluronic acid.', imageUrl: 'https://images.unsplash.com/photo-1611080541599-8c6dbde6ed28?w=800&q=80', category: 'skin care' },
+    { id: '4', name: 'Vitamin C Night Cream', price: 1800, description: 'Brightening night cream with stabilized Vitamin C and hyaluronic acid.', imageUrl: 'https://images.unsplash.com/photo-1611080541599-8c6dbde6ed28?w=800&q=80', category: 'screen care' },
     { id: '5', name: 'Botanical Lash Mascara', price: 1100, description: 'Volumizing mascara made with clean, eye-safe plant extracts.', imageUrl: 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?w=800&q=80', category: 'eye care' },
     { id: '6', name: 'Velvet Matte Lipstick', price: 1400, description: 'Long-lasting matte lipstick enriched with shea butter.', imageUrl: 'https://images.unsplash.com/photo-1586776977607-310e9c725c37?w=800&q=80', category: 'makeover' },
-  ];
+  ]);
 
   const [selectedCategory, setSelectedCategory] = useState('All Products');
-  const categories = ['All Products', 'eye care', 'skin care', 'makeover'];
+  const categories = ['All Products', 'eye care', 'screen care', 'makeover'];
 
   const filteredProducts = selectedCategory === 'All Products' 
-    ? products 
-    : products.filter(p => p.category === selectedCategory);
+    ? productsList 
+    : productsList.filter(p => p.category === selectedCategory);
+
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [productForm, setProductForm] = useState({
+    name: '',
+    price: 0,
+    category: 'eye care',
+    description: '',
+    imageUrl: ''
+  });
+
+  const handleOpenProductModal = (product: Product | null = null) => {
+    if (product) {
+      setEditingProduct(product);
+      setProductForm({ ...product });
+    } else {
+      setEditingProduct(null);
+      setProductForm({ name: '', price: 0, category: 'eye care', description: '', imageUrl: '' });
+    }
+    setIsProductModalOpen(true);
+  };
+
+  const handleProductSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingProduct) {
+      setProductsList(prev => prev.map(p => p.id === editingProduct.id ? { ...productForm, id: p.id } : p));
+    } else {
+      const newProduct = { ...productForm, id: Date.now().toString() };
+      setProductsList(prev => [...prev, newProduct]);
+    }
+    setIsProductModalOpen(false);
+  };
+
+  const deleteProduct = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this product?')) {
+      setProductsList(prev => prev.filter(p => p.id !== id));
+    }
+  };
+
+  const handleImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProductForm(prev => ({ ...prev, imageUrl: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const addToCart = (product: Product) => {
     setCart(prev => {
@@ -184,6 +259,14 @@ export default function App() {
           >
             <Users className="w-4 h-4" />
             Memberships
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('tracking')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md font-medium transition-colors ${activeTab === 'tracking' ? 'bg-pink-600/10 text-pink-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+          >
+            <Truck className="w-4 h-4" />
+            Order Tracking
           </button>
 
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2 pt-6 pb-2">Administration</div>
@@ -306,6 +389,90 @@ export default function App() {
               </motion.div>
             )}
 
+            {activeTab === 'tracking' && (
+              <motion.div
+                key="tracking"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-6"
+              >
+                <div className="flex justify-between items-end">
+                  <div>
+                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Order Tracking</h1>
+                    <p className="text-slate-500 text-xs mt-1">Monitor shipment progress and update courier status.</p>
+                  </div>
+                </div>
+
+                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="text-[10px] text-slate-400 font-bold uppercase bg-white border-b border-slate-100">
+                        <tr>
+                          <th className="px-6 py-3">Order Info</th>
+                          <th className="px-6 py-3">Customer</th>
+                          <th className="px-6 py-3">Current Status</th>
+                          <th className="px-6 py-3 text-right">Update Progression</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-sm text-slate-600">
+                        {orders.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="px-6 py-20 text-center text-slate-400 font-medium italic">
+                              No orders in tracking yet. Complete a checkout to see orders here.
+                            </td>
+                          </tr>
+                        ) : (
+                          orders.map((order) => (
+                            <tr key={order.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                              <td className="px-6 py-4">
+                                <p className="font-bold text-slate-900">{order.orderNumber}</p>
+                                <p className="text-[10px] text-slate-400 font-mono">INV: {order.invoiceNumber}</p>
+                                <p className="text-[9px] text-slate-400 uppercase mt-1">{order.timestamp}</p>
+                              </td>
+                              <td className="px-6 py-4 font-medium text-slate-700">{order.customerName}</td>
+                              <td className="px-6 py-4">
+                                <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                  order.status === 'delivery done' ? 'bg-green-100 text-green-700' :
+                                  order.status === 'Hand over to the currier agent' ? 'bg-blue-100 text-blue-700' :
+                                  order.status === 'Packing done' ? 'bg-pink-100 text-pink-700' :
+                                  'bg-slate-100 text-slate-500'
+                                }`}>
+                                  {order.status}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <div className="flex justify-end gap-2">
+                                  <button 
+                                    onClick={() => updateOrderStatus(order.id, 'Packing done')}
+                                    className={`px-2 py-1 text-[9px] font-bold rounded border ${order.status === 'Packing done' ? 'bg-pink-500 text-white border-pink-500' : 'border-slate-200 text-slate-500 hover:border-pink-300'}`}
+                                  >
+                                    Packing
+                                  </button>
+                                  <button 
+                                    onClick={() => updateOrderStatus(order.id, 'Hand over to the currier agent')}
+                                    className={`px-2 py-1 text-[9px] font-bold rounded border ${order.status === 'Hand over to the currier agent' ? 'bg-blue-500 text-white border-blue-500' : 'border-slate-200 text-slate-500 hover:border-blue-300'}`}
+                                  >
+                                    Courier
+                                  </button>
+                                  <button 
+                                    onClick={() => updateOrderStatus(order.id, 'delivery done')}
+                                    className={`px-2 py-1 text-[9px] font-bold rounded border ${order.status === 'delivery done' ? 'bg-green-500 text-white border-green-500' : 'border-slate-200 text-slate-500 hover:border-green-300'}`}
+                                  >
+                                    Delivered
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             {activeTab === 'membership' && (
               <motion.div
                 key="membership"
@@ -368,70 +535,210 @@ export default function App() {
               >
                 <div className="flex justify-between items-end">
                   <div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Admin Dashboard</h1>
-                    <p className="text-slate-500 text-xs mt-1">Manage system configurations and review transactions.</p>
+                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Product Management</h1>
+                    <p className="text-slate-500 text-xs mt-1">Add, update or remove items from your store catalog.</p>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Total Revenue</p>
-                    <p className="text-xl font-black text-slate-900 font-mono tracking-tighter">৳ 2,45,000</p>
-                  </div>
-                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Active Members</p>
-                    <p className="text-xl font-black text-slate-900 font-mono tracking-tighter">1,204</p>
-                  </div>
-                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Total Orders</p>
-                    <p className="text-xl font-black text-slate-900 font-mono tracking-tighter">842</p>
-                  </div>
-                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">System Health</p>
-                    <p className="text-xl font-black text-green-600 font-mono tracking-tighter">99.9%</p>
-                  </div>
+                  <button 
+                    onClick={() => handleOpenProductModal()}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-900/10"
+                  >
+                    <Plus className="w-4 h-4" /> Add New Product
+                  </button>
                 </div>
 
                 <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                  <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                    <h3 className="font-bold text-slate-800">Recent Memberships (Auto-added)</h3>
-                  </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                       <thead className="text-[10px] text-slate-400 font-bold uppercase bg-white border-b border-slate-100">
                         <tr>
-                          <th className="px-6 py-3">Customer</th>
-                          <th className="px-6 py-3">Mobile</th>
-                          <th className="px-6 py-3">Address</th>
-                          <th className="px-6 py-3">Status</th>
-                          <th className="px-6 py-3 text-right">Plan</th>
+                          <th className="px-6 py-3">Product Info</th>
+                          <th className="px-6 py-3">Category</th>
+                          <th className="px-6 py-3">Price</th>
+                          <th className="px-6 py-3 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="text-sm text-slate-600">
-                        {memberData.map((member) => (
-                          <tr key={member.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                        {productsList.map((product) => (
+                          <tr key={product.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
                             <td className="px-6 py-4">
-                              <p className="font-medium text-slate-900">{member.name}</p>
-                              <p className="text-[10px] text-slate-400">{member.email}</p>
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-slate-100 rounded-lg overflow-hidden border border-slate-100 shrink-0">
+                                  <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-bold text-slate-900 truncate">{product.name}</p>
+                                  <p className="text-[10px] text-slate-400 line-clamp-1 max-w-[300px]">{product.description}</p>
+                                </div>
+                              </div>
                             </td>
-                            <td className="px-6 py-4 text-[11px] font-mono">{member.mobile}</td>
-                            <td className="px-6 py-4 text-[11px] max-w-[200px] truncate">{member.address}</td>
                             <td className="px-6 py-4">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                member.status === 'Active' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'
-                              }`}>
-                                {member.status}
+                              <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] font-bold uppercase tracking-wider">
+                                {product.category}
                               </span>
                             </td>
-                            <td className="px-6 py-4 text-right font-medium text-slate-900">{member.plan}</td>
+                            <td className="px-6 py-4 font-black text-slate-900">
+                              {formatPrice(product.price)}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex justify-end gap-2">
+                                <button 
+                                  onClick={() => handleOpenProductModal(product)}
+                                  className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-500"
+                                  title="Edit Product"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                </button>
+                                <button 
+                                  onClick={() => deleteProduct(product.id)}
+                                  className="p-2 hover:bg-pink-50 rounded-lg transition-colors text-pink-500"
+                                  title="Delete Product"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                 </div>
+
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-white">
+                  <h3 className="font-bold mb-2">Operational Insight</h3>
+                  <div className="grid grid-cols-3 gap-6">
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Total Products</p>
+                      <p className="text-2xl font-black">{productsList.length}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Avg. Price</p>
+                      <p className="text-2xl font-black">
+                        {formatPrice(Math.round(productsList.reduce((s, p) => s + p.price, 0) / productsList.length))}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </motion.div>
             )}
+
+            {/* Product Add/Edit Modal */}
+            <AnimatePresence>
+              {isProductModalOpen && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setIsProductModalOpen(false)}
+                    className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm"
+                  />
+                  <motion.div 
+                    initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                    className="relative bg-white shadow-2xl rounded-2xl w-full max-w-xl overflow-hidden"
+                  >
+                    <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                      <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                        {editingProduct ? 'Edit Product' : 'Add New Product'}
+                      </h2>
+                      <button 
+                        onClick={() => setIsProductModalOpen(false)}
+                        className="p-2 hover:bg-white rounded-full transition-colors"
+                      >
+                        <X className="w-5 h-5 text-slate-400" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleProductSubmit} className="p-8 space-y-6">
+                      <div className="grid grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Product Name</label>
+                          <input 
+                            type="text" 
+                            required
+                            placeholder="e.g. Organic Serum"
+                            value={productForm.name}
+                            onChange={(e) => setProductForm(prev => ({ ...prev, name: e.target.value }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all outline-none"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Price (TK)</label>
+                          <input 
+                            type="number" 
+                            required
+                            placeholder="0"
+                            value={productForm.price || ''}
+                            onChange={(e) => setProductForm(prev => ({ ...prev, price: parseInt(e.target.value) || 0 }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Category</label>
+                        <div className="relative">
+                          <select 
+                            value={productForm.category}
+                            onChange={(e) => setProductForm(prev => ({ ...prev, category: e.target.value }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 appearance-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all outline-none"
+                          >
+                            {categories.filter(c => c !== 'All Products').map(cat => (
+                              <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
+                            ))}
+                          </select>
+                          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                            <Plus className="w-4 h-4 rotate-45" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Description</label>
+                        <textarea 
+                          required
+                          placeholder="Tell customers about the product benefits..."
+                          value={productForm.description}
+                          onChange={(e) => setProductForm(prev => ({ ...prev, description: e.target.value }))}
+                          rows={3}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all outline-none resize-none"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Product Image</label>
+                        <div className="flex gap-4">
+                          <label className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-xl p-4 hover:border-pink-300 transition-all cursor-pointer bg-slate-50 group">
+                            <input 
+                              type="file" 
+                              accept="image/*"
+                              onChange={handleImageFile}
+                              className="hidden"
+                            />
+                            <Printer className="w-6 h-6 text-slate-300 mb-2 group-hover:text-pink-400" />
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">Click to Browse</p>
+                          </label>
+                          {productForm.imageUrl && (
+                            <div className="w-24 h-24 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                              <img src={productForm.imageUrl} className="w-full h-full object-cover" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <button 
+                        type="submit"
+                        className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase tracking-[0.3em] hover:bg-pink-600 transition-all shadow-xl shadow-slate-900/10 mt-4"
+                      >
+                        {editingProduct ? 'Save Changes' : 'Create Product'}
+                      </button>
+                    </form>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
 
             {activeTab === 'checkout' && (
               <motion.div
