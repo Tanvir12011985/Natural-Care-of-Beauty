@@ -64,7 +64,7 @@ const formatPrice = (price: number) => {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'store' | 'admin' | 'checkout' | 'success' | 'tracking'>('store');
-  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'products' | 'members' | 'plans'>('products');
+  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'products' | 'members' | 'status' | 'plans'>('products');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(true); // Default to true for demo based on user email in metadata
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -461,26 +461,9 @@ export default function App() {
                                 </span>
                               </td>
                               <td className="px-6 py-4 text-right">
-                                <div className="flex justify-end gap-2">
-                                  <button 
-                                    onClick={() => updateOrderStatus(order.id, 'Packing done')}
-                                    className={`px-2 py-1 text-[9px] font-bold rounded border ${order.status === 'Packing done' ? 'bg-pink-500 text-white border-pink-500' : 'border-slate-200 text-slate-500 hover:border-pink-300'}`}
-                                  >
-                                    Packing
-                                  </button>
-                                  <button 
-                                    onClick={() => updateOrderStatus(order.id, 'Hand over to the currier agent')}
-                                    className={`px-2 py-1 text-[9px] font-bold rounded border ${order.status === 'Hand over to the currier agent' ? 'bg-blue-500 text-white border-blue-500' : 'border-slate-200 text-slate-500 hover:border-blue-300'}`}
-                                  >
-                                    Courier
-                                  </button>
-                                  <button 
-                                    onClick={() => updateOrderStatus(order.id, 'delivery done')}
-                                    className={`px-2 py-1 text-[9px] font-bold rounded border ${order.status === 'delivery done' ? 'bg-green-500 text-white border-green-500' : 'border-slate-200 text-slate-500 hover:border-green-300'}`}
-                                  >
-                                    Delivered
-                                  </button>
-                                </div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">
+                                  Tracked System Item
+                                </span>
                               </td>
                             </tr>
                           ))
@@ -521,12 +504,109 @@ export default function App() {
                     Members
                   </button>
                   <button 
+                    onClick={() => setAdminSubTab('status')}
+                    className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${adminSubTab === 'status' ? 'border-pink-500 text-pink-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                  >
+                    Order Status
+                  </button>
+                  <button 
                     onClick={() => setAdminSubTab('plans')}
                     className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${adminSubTab === 'plans' ? 'border-pink-500 text-pink-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                   >
                     Membership Plans
                   </button>
                 </div>
+
+                {adminSubTab === 'status' && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                      <div>
+                        <h1 className="text-xl font-black text-slate-900 tracking-tight uppercase tracking-widest">Order Fulfillment</h1>
+                        <p className="text-slate-500 text-[10px] font-bold uppercase mt-1 tracking-wider">Update tracking status for packing, courier handover, and delivery.</p>
+                      </div>
+                      <div className="w-full md:w-64">
+                         <input 
+                          type="text" 
+                          placeholder="Quick find by Order #..."
+                          value={orderSearchQuery}
+                          onChange={(e) => setOrderSearchQuery(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-[10px] font-bold uppercase tracking-widest focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead className="text-[10px] text-slate-400 font-bold uppercase bg-white border-b border-slate-100">
+                            <tr>
+                              <th className="px-6 py-3">Order Number</th>
+                              <th className="px-6 py-3">Customer</th>
+                              <th className="px-6 py-3">Stage Status</th>
+                              <th className="px-6 py-3 text-right">Fulfillment Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="text-sm text-slate-600">
+                            {orders.filter(o => o.orderNumber.toLowerCase().includes(orderSearchQuery.toLowerCase())).length === 0 ? (
+                              <tr>
+                                <td colSpan={4} className="px-6 py-20 text-center text-slate-400 font-bold uppercase tracking-widest italic text-[10px]">
+                                  No orders pending fulfillment
+                                </td>
+                              </tr>
+                            ) : (
+                              orders
+                                .filter(o => o.orderNumber.toLowerCase().includes(orderSearchQuery.toLowerCase()))
+                                .map((order) => (
+                                <tr key={order.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                                  <td className="px-6 py-4">
+                                    <p className="font-black text-slate-900 tracking-tighter text-lg">{order.orderNumber}</p>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase">Placed: {order.timestamp}</p>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <p className="font-bold text-slate-700">{order.customerName}</p>
+                                    <p className="text-[10px] text-slate-400 font-mono">Invoice: {order.invoiceNumber}</p>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${
+                                      order.status === 'delivery done' ? 'bg-green-500 text-white' :
+                                      order.status === 'Hand over to the currier agent' ? 'bg-blue-500 text-white' :
+                                      order.status === 'Packing done' ? 'bg-pink-500 text-white' :
+                                      'bg-slate-200 text-slate-600'
+                                    }`}>
+                                      {order.status}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
+                                    <div className="flex justify-end gap-2">
+                                      <button 
+                                        onClick={() => updateOrderStatus(order.id, 'Packing done')}
+                                        className={`px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg border-2 transition-all ${order.status === 'Packing done' ? 'bg-pink-500 text-white border-pink-500' : 'border-slate-100 text-slate-400 hover:border-pink-500 hover:text-pink-500'}`}
+                                      >
+                                        Pack
+                                      </button>
+                                      <button 
+                                        onClick={() => updateOrderStatus(order.id, 'Hand over to the currier agent')}
+                                        className={`px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg border-2 transition-all ${order.status === 'Hand over to the currier agent' ? 'bg-blue-500 text-white border-blue-500' : 'border-slate-100 text-slate-400 hover:border-blue-500 hover:text-blue-500'}`}
+                                      >
+                                        Courier
+                                      </button>
+                                      <button 
+                                        onClick={() => updateOrderStatus(order.id, 'delivery done')}
+                                        className={`px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg border-2 transition-all ${order.status === 'delivery done' ? 'bg-green-500 text-white border-green-500' : 'border-slate-100 text-slate-400 hover:border-green-500 hover:text-green-500'}`}
+                                      >
+                                        Finish
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
 
                 {adminSubTab === 'overview' && (
                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
