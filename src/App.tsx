@@ -157,6 +157,7 @@ export default function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
+  const [lastPlacedOrder, setLastPlacedOrder] = useState<Order | null>(null);
   const [lastOrderItems, setLastOrderItems] = useState<CartItem[]>([]);
   const [showSlip, setShowSlip] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -241,6 +242,10 @@ export default function App() {
 
   // Fetch Orders
   useEffect(() => {
+    if (!isAdmin) {
+      setOrders([]);
+      return;
+    }
     const q = query(collection(db, 'orders'), orderBy('timestamp', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items: Order[] = [];
@@ -250,11 +255,14 @@ export default function App() {
       setOrders(items);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'orders'));
     return () => unsubscribe();
-  }, []);
+  }, [isAdmin]);
 
   // Fetch Members
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdmin) {
+      setMemberData([]);
+      return;
+    }
     const q = query(collection(db, 'members'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items: Member[] = [];
@@ -311,7 +319,7 @@ export default function App() {
     }
 
     // Add to Orders
-    const newOrder: Omit<Order, 'id'> = {
+    const newOrderData: Omit<Order, 'id'> = {
       orderNumber: ordNum,
       invoiceNumber: checkoutForm.invoiceNumber,
       customerName: checkoutForm.name,
@@ -331,7 +339,8 @@ export default function App() {
     };
     
     try {
-      await addDoc(collection(db, 'orders'), newOrder);
+      const docRef = await addDoc(collection(db, 'orders'), newOrderData);
+      setLastPlacedOrder({ ...newOrderData, id: docRef.id } as Order);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'orders');
     }
@@ -1693,8 +1702,12 @@ export default function App() {
                 <div className="mt-8 flex flex-col gap-4 w-full max-w-sm">
                   <button 
                     onClick={() => {
-                      const latestOrder = orders[0]; // The one we just added should be first due to orderBy desc
-                      if (latestOrder) handleOpenSlip(latestOrder);
+                      if (isAdmin) {
+                        const latestOrder = orders[0];
+                        if (latestOrder) handleOpenSlip(latestOrder);
+                      } else if (lastPlacedOrder) {
+                        handleOpenSlip(lastPlacedOrder);
+                      }
                     }}
                     className="flex items-center justify-center gap-3 px-8 py-4 bg-pink-500 text-white rounded-xl font-bold text-xs uppercase tracking-[0.3em] hover:bg-pink-600 transition-all shadow-xl shadow-pink-500/20"
                   >
