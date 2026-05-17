@@ -29,6 +29,10 @@ interface Product {
   category: string;
 }
 
+interface CartItem extends Product {
+  quantity: number;
+}
+
 interface Member {
   id: string;
   email: string;
@@ -46,14 +50,53 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'store' | 'membership' | 'admin'>('store');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(true); // Default to true for demo based on user email in metadata
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   // Dummy Data for UI mockup
   const products: Product[] = [
-    { id: '1', name: 'Nexus Prime Watch', price: 15000, description: 'Cutting edge smart watch with AI integration.', imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80', category: 'Accessories' },
-    { id: '2', name: 'Aether 1 Wireless Buds', price: 8500, description: 'True wireless sound with active noise cancellation.', imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80', category: 'Audio' },
-    { id: '3', name: 'Lumina Tech Backpack', price: 4200, description: 'Durable, waterproof, and sleek design for modern professionals.', imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&q=80', category: 'Lifestyle' },
-    { id: '4', name: 'Quantum Mechanical Keyboard', price: 12000, description: 'Professional grade mechanical keyboard with custom RGB.', imageUrl: 'https://images.unsplash.com/photo-1511467687858-23d96c32e4ae?w=800&q=80', category: 'Peripherals' },
+    { id: '1', name: 'Organic Rosehip Oil', price: 1200, description: 'Pure cold-pressed rosehip oil for radiant, youthful skin.', imageUrl: 'https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?w=800&q=80', category: 'skin care' },
+    { id: '2', name: 'Revitalizing Eye Serum', price: 950, description: 'Caffeine-infused serum to reduce puffiness and dark circles.', imageUrl: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800&q=80', category: 'eye care' },
+    { id: '3', name: 'Mineral Glow Foundation', price: 2100, description: 'Lightweight mineral foundation for a natural, flawless finish.', imageUrl: 'https://images.unsplash.com/photo-1596704017254-9b121068fb31?w=800&q=80', category: 'makeover' },
+    { id: '4', name: 'Vitamin C Night Cream', price: 1800, description: 'Brightening night cream with stabilized Vitamin C and hyaluronic acid.', imageUrl: 'https://images.unsplash.com/photo-1611080541599-8c6dbde6ed28?w=800&q=80', category: 'skin care' },
+    { id: '5', name: 'Botanical Lash Mascara', price: 1100, description: 'Volumizing mascara made with clean, eye-safe plant extracts.', imageUrl: 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?w=800&q=80', category: 'eye care' },
+    { id: '6', name: 'Velvet Matte Lipstick', price: 1400, description: 'Long-lasting matte lipstick enriched with shea butter.', imageUrl: 'https://images.unsplash.com/photo-1586776977607-310e9c725c37?w=800&q=80', category: 'makeover' },
   ];
+
+  const [selectedCategory, setSelectedCategory] = useState('All Products');
+  const categories = ['All Products', 'eye care', 'skin care', 'makeover'];
+
+  const filteredProducts = selectedCategory === 'All Products' 
+    ? products 
+    : products.filter(p => p.category === selectedCategory);
+
+  const addToCart = (product: Product) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.id === product.id);
+      if (existing) {
+        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+      }
+      return [...prev, { ...product, quantity: 1 }];
+    });
+    setIsCartOpen(true);
+  };
+
+  const removeFromCart = (productId: string) => {
+    setCart(prev => prev.filter(item => item.id !== productId));
+  };
+
+  const updateQuantity = (productId: string, delta: number) => {
+    setCart(prev => prev.map(item => {
+      if (item.id === productId) {
+        const next = item.quantity + delta;
+        return next > 0 ? { ...item, quantity: next } : item;
+      }
+      return item;
+    }));
+  };
+
+  const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const members: Member[] = [
     { id: 'm1', email: 'alex.m@example.com', plan: 'Premium', status: 'Pending Review', createdAt: '2024-05-01' },
@@ -62,51 +105,53 @@ export default function App() {
   ];
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden">
+    <div className="flex h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden text-[13px]">
       {/* Sidebar - Sleek Theme */}
       <aside className="w-64 bg-slate-900 flex flex-col text-white shrink-0">
         <div className="p-6 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center font-bold text-white shadow-lg">N</div>
-            <span className="font-semibold text-lg tracking-tight">Nexus Store</span>
+            <div className="w-8 h-8 bg-pink-500 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-pink-500/20 text-base">B</div>
+            <span className="font-semibold text-base tracking-tight leading-tight">Natural Care <br/> of Beauty</span>
           </div>
         </div>
 
         <nav className="flex-1 py-6 px-4 space-y-2">
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-widest px-2 pb-2">Navigation</div>
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2 pb-2">Navigation</div>
           
           <button 
             onClick={() => setActiveTab('store')}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-md font-medium transition-colors ${activeTab === 'store' ? 'bg-blue-600/10 text-blue-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md font-medium transition-colors ${activeTab === 'store' ? 'bg-pink-600/10 text-pink-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
           >
             <ShoppingBag className="w-4 h-4" />
-            Store Catalog
+            Product Catalog
           </button>
           
           <button 
             onClick={() => setActiveTab('membership')}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-md font-medium transition-colors ${activeTab === 'membership' ? 'bg-blue-600/10 text-blue-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md font-medium transition-colors ${activeTab === 'membership' ? 'bg-pink-600/10 text-pink-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
           >
             <Users className="w-4 h-4" />
             Memberships
           </button>
 
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-widest px-2 pt-6 pb-2">Administration</div>
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2 pt-6 pb-2">Administration</div>
           
           <button 
             onClick={() => setActiveTab('admin')}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-md font-medium transition-colors ${activeTab === 'admin' ? 'bg-blue-600/10 text-blue-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md font-medium transition-colors ${activeTab === 'admin' ? 'bg-pink-600/10 text-pink-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
           >
             <LayoutDashboard className="w-4 h-4" />
-            Dashboard
+            Admin Dashboard
           </button>
         </nav>
 
         <div className="p-4 mt-auto">
           <div className="bg-slate-800 rounded-lg p-3">
-            <div className="text-xs text-slate-400 mb-1">Signed in as</div>
-            <div className="text-sm font-medium text-white truncate">tanvir.khc@gmail.com</div>
-            <div className="mt-2 text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full inline-block">Administrator</div>
+            <div className="text-[10px] text-slate-400 mb-1 font-bold uppercase tracking-wider">Administrator</div>
+            <div className="text-xs font-medium text-white truncate mb-2">tanvir.khc@gmail.com</div>
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-bold">Verified Status</span>
+            </div>
           </div>
         </div>
       </aside>
@@ -115,20 +160,30 @@ export default function App() {
       <main className="flex-1 flex flex-col min-w-0">
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shadow-sm shrink-0">
           <div className="flex items-center gap-4 text-sm font-medium text-slate-500">
-            <span>Nexus App</span>
+            <span className="font-bold text-slate-900">Natural Care of Beauty</span>
             <span className="text-slate-300 text-lg">/</span>
-            <span className="text-slate-900 capitalize">{activeTab} View</span>
-            {activeTab === 'admin' && (
-              <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold ml-2">V2 ACTIVE</span>
-            )}
+            <span className="text-slate-900 capitalize">{activeTab}</span>
           </div>
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-xs text-slate-600 font-medium">Systems Online</span>
+              <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+              <span className="text-[11px] text-slate-600 font-medium">Server Live</span>
             </div>
-            <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500">
-              <Star className="w-5 h-5" />
+
+            <button 
+              onClick={() => setIsCartOpen(true)}
+              className="p-2.5 hover:bg-slate-50 rounded-full transition-colors relative group"
+            >
+              <ShoppingBag className="w-5 h-5 text-slate-600 group-hover:text-pink-500" />
+              {cartCount > 0 && (
+                <span className="absolute top-0 right-0 w-4 h-4 bg-pink-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full ring-2 ring-white">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+
+            <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-pink-500">
+              <Star className="w-4 h-4" />
             </div>
           </div>
         </header>
@@ -143,37 +198,53 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
-                <div className="flex justify-between items-end">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                   <div>
-                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Main Catalog</h1>
-                    <p className="text-slate-500 mt-1">Discover our latest minimalist essentials.</p>
+                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Our Collection</h1>
+                    <p className="text-slate-500 text-xs mt-1">Nature's finest ingredients for your beauty ritual.</p>
                   </div>
-                  <div className="bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm font-medium text-slate-600 shadow-sm">
-                    {products.length} Products Available
+                  
+                  <div className="flex flex-wrap gap-2">
+                    {categories.map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all border ${
+                          selectedCategory === cat 
+                            ? 'bg-pink-500 text-white border-pink-500 shadow-md shadow-pink-500/20' 
+                            : 'bg-white text-slate-500 border-slate-200 hover:border-pink-300 hover:text-pink-500'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {products.map((product) => (
-                    <div key={product.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm group hover:shadow-md transition-shadow">
-                      <div className="aspect-[4/3] bg-slate-100 relative overflow-hidden">
+                  {filteredProducts.map((product) => (
+                    <div key={product.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm group hover:shadow-md transition-all hover:border-pink-100">
+                      <div className="aspect-[4/5] bg-slate-100 relative overflow-hidden">
                         <img 
                           src={product.imageUrl} 
                           alt={product.name} 
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                           referrerPolicy="no-referrer"
                         />
-                        <div className="absolute top-3 left-3 px-2 py-1 bg-white/90 backdrop-blur rounded text-[10px] font-bold uppercase text-slate-600 border border-slate-200">
+                        <div className="absolute top-3 left-3 px-2 py-0.5 bg-white/90 backdrop-blur rounded-[4px] text-[9px] font-black uppercase text-pink-600 border border-pink-100">
                           {product.category}
                         </div>
                       </div>
-                      <div className="p-4">
-                        <h3 className="font-bold text-slate-900 mb-1">{product.name}</h3>
-                        <p className="text-xs text-slate-500 line-clamp-2 mb-4 leading-relaxed">{product.description}</p>
+                      <div className="p-5">
+                        <h3 className="font-bold text-slate-900 mb-1 group-hover:text-pink-600 transition-colors">{product.name}</h3>
+                        <p className="text-[11px] text-slate-500 line-clamp-2 mb-4 leading-relaxed font-medium">{product.description}</p>
                         <div className="flex items-center justify-between">
-                          <span className="text-blue-600 font-bold text-lg">{formatPrice(product.price)}</span>
-                          <button className="p-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors">
-                            <Plus className="w-4 h-4" />
+                          <span className="text-slate-900 font-black text-base">{formatPrice(product.price)}</span>
+                          <button 
+                            onClick={() => addToCart(product)}
+                            className="p-2.5 bg-slate-900 text-white rounded-lg hover:bg-pink-500 transition-all shadow-lg shadow-slate-900/5 hover:shadow-pink-500/20"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
@@ -359,6 +430,122 @@ export default function App() {
             )}
           </AnimatePresence>
         </div>
+
+        {/* Shopping Cart Drawer */}
+        <AnimatePresence>
+          {isCartOpen && (
+            <>
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsCartOpen(false)}
+                className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100]"
+              />
+              <motion.div 
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-[101] flex flex-col"
+              >
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <ShoppingBag className="w-5 h-5 text-pink-500" />
+                    <h2 className="text-xl font-bold text-slate-900">Your Cart</h2>
+                    <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded text-[10px] font-bold uppercase">{cartCount} ITEMS</span>
+                  </div>
+                  <button 
+                    onClick={() => setIsCartOpen(false)}
+                    className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5 text-slate-400" />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-auto p-6">
+                  {cart.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
+                      <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
+                        <ShoppingBag className="w-8 h-8 text-slate-200" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-900">Your cart is empty</p>
+                        <p className="text-xs text-slate-400 mt-1">Add items from the catalog to get started</p>
+                      </div>
+                      <button 
+                        onClick={() => { setIsCartOpen(false); setActiveTab('store'); }}
+                        className="text-pink-500 text-xs font-bold uppercase tracking-widest hover:underline"
+                      >
+                        Browse Products
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {cart.map((item) => (
+                        <div key={item.id} className="flex gap-4 group">
+                          <div className="w-20 h-24 bg-slate-100 rounded-lg overflow-hidden shrink-0 border border-slate-100">
+                            <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                          </div>
+                          <div className="flex-1 min-w-0 py-1 flex flex-col">
+                            <div className="flex justify-between items-start mb-1">
+                              <h3 className="font-bold text-slate-900 text-[12px] uppercase truncate pr-4">{item.name}</h3>
+                              <button 
+                                onClick={() => removeFromCart(item.id)}
+                                className="text-slate-300 hover:text-pink-500 transition-colors"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                            <p className="text-[10px] text-pink-600 font-bold uppercase tracking-wider mb-auto">{item.category}</p>
+                            
+                            <div className="flex items-center justify-between mt-4">
+                              <div className="flex items-center border border-slate-200 rounded-lg bg-slate-50">
+                                <button 
+                                  onClick={() => updateQuantity(item.id, -1)}
+                                  className="px-2 py-1 hover:bg-white rounded-l-lg transition-colors text-slate-500"
+                                >-</button>
+                                <span className="px-2 text-[11px] font-bold text-slate-900">{item.quantity}</span>
+                                <button 
+                                  onClick={() => updateQuantity(item.id, 1)}
+                                  className="px-2 py-1 hover:bg-white rounded-r-lg transition-colors text-slate-500"
+                                >+</button>
+                              </div>
+                              <span className="font-black text-slate-900">{formatPrice(item.price * item.quantity)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-6 border-t border-slate-100 bg-slate-50/50">
+                  <div className="space-y-2 mb-6">
+                    <div className="flex justify-between text-xs text-slate-500 font-medium">
+                      <span>Subtotal</span>
+                      <span>{formatPrice(cartTotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-500 font-medium">
+                      <span>Delivery</span>
+                      <span className="text-green-600 uppercase font-black text-[9px]">Free</span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t border-slate-100">
+                      <span className="font-black text-slate-900 uppercase text-[12px]">Total Amount</span>
+                      <span className="font-black text-pink-600 text-lg">{formatPrice(cartTotal)}</span>
+                    </div>
+                  </div>
+                  <button 
+                    disabled={cart.length === 0}
+                    className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase tracking-[0.3em] hover:bg-slate-800 disabled:bg-slate-200 disabled:cursor-not-allowed transition-all shadow-xl shadow-slate-900/10"
+                  >
+                    Proceed to Checkout
+                  </button>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
       </main>
     </div>
   );

@@ -1,6 +1,6 @@
 {
-  "name": "Nexus Store & Membership",
-  "description": "A product catalog with membership management and admin controls.",
+  "name": "Natural Care of Beauty",
+  "description": "Premium natural beauty products and exclusive membership services.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
