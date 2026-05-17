@@ -64,6 +64,7 @@ const formatPrice = (price: number) => {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'store' | 'membership' | 'admin' | 'checkout' | 'success' | 'tracking'>('store');
+  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'products' | 'members'>('products');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(true); // Default to true for demo based on user email in metadata
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -533,92 +534,181 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
-                <div className="flex justify-between items-end">
-                  <div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Product Management</h1>
-                    <p className="text-slate-500 text-xs mt-1">Add, update or remove items from your store catalog.</p>
-                  </div>
+                {/* Admin Sub-navigation */}
+                <div className="flex border-b border-slate-200">
                   <button 
-                    onClick={() => handleOpenProductModal()}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-900/10"
+                    onClick={() => setAdminSubTab('overview')}
+                    className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${adminSubTab === 'overview' ? 'border-pink-500 text-pink-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                   >
-                    <Plus className="w-4 h-4" /> Add New Product
+                    Overview
+                  </button>
+                  <button 
+                    onClick={() => setAdminSubTab('products')}
+                    className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${adminSubTab === 'products' ? 'border-pink-500 text-pink-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                  >
+                    Product Control
+                  </button>
+                  <button 
+                    onClick={() => setAdminSubTab('members')}
+                    className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${adminSubTab === 'members' ? 'border-pink-500 text-pink-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                  >
+                    Membership Management
                   </button>
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead className="text-[10px] text-slate-400 font-bold uppercase bg-white border-b border-slate-100">
-                        <tr>
-                          <th className="px-6 py-3">Product Info</th>
-                          <th className="px-6 py-3">Category</th>
-                          <th className="px-6 py-3">Price</th>
-                          <th className="px-6 py-3 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="text-sm text-slate-600">
-                        {productsList.map((product) => (
-                          <tr key={product.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-slate-100 rounded-lg overflow-hidden border border-slate-100 shrink-0">
-                                  <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="font-bold text-slate-900 truncate">{product.name}</p>
-                                  <p className="text-[10px] text-slate-400 line-clamp-1 max-w-[300px]">{product.description}</p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] font-bold uppercase tracking-wider">
-                                {product.category}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 font-black text-slate-900">
-                              {formatPrice(product.price)}
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              <div className="flex justify-end gap-2">
-                                <button 
-                                  onClick={() => handleOpenProductModal(product)}
-                                  className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-500"
-                                  title="Edit Product"
-                                >
-                                  <Plus className="w-4 h-4" />
-                                </button>
-                                <button 
-                                  onClick={() => deleteProduct(product.id)}
-                                  className="p-2 hover:bg-pink-50 rounded-lg transition-colors text-pink-500"
-                                  title="Delete Product"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                {adminSubTab === 'overview' && (
+                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Total Revenue</p>
+                        <p className="text-xl font-black text-slate-900 font-mono tracking-tighter">৳ 2,45,000</p>
+                      </div>
+                      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Active Members</p>
+                        <p className="text-xl font-black text-slate-900 font-mono tracking-tighter">{memberData.length}</p>
+                      </div>
+                      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Total Orders</p>
+                        <p className="text-xl font-black text-slate-900 font-mono tracking-tighter">{orders.length}</p>
+                      </div>
+                      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Items in Stock</p>
+                        <p className="text-xl font-black text-slate-900 font-mono tracking-tighter">{productsList.length}</p>
+                      </div>
+                    </div>
 
-                <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-white">
-                  <h3 className="font-bold mb-2">Operational Insight</h3>
-                  <div className="grid grid-cols-3 gap-6">
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Total Products</p>
-                      <p className="text-2xl font-black">{productsList.length}</p>
+                    <div className="bg-slate-900 rounded-2xl p-8 text-white overflow-hidden relative">
+                      <div className="relative z-10">
+                        <h2 className="text-2xl font-black italic tracking-tighter mb-2">Operational Excellence</h2>
+                        <p className="text-slate-400 text-sm max-w-md font-medium leading-relaxed">
+                          All systems are performing within optimal parameters. Product catalogs and membership nodes are synchronized across the edge network.
+                        </p>
+                      </div>
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-pink-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Avg. Price</p>
-                      <p className="text-2xl font-black">
-                        {formatPrice(Math.round(productsList.reduce((s, p) => s + p.price, 0) / productsList.length))}
-                      </p>
+                   </motion.div>
+                )}
+
+                {adminSubTab === 'products' && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                    <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                      <div>
+                        <h1 className="text-xl font-black text-slate-900 tracking-tight uppercase tracking-widest">Product Control</h1>
+                        <p className="text-slate-500 text-[10px] font-bold uppercase mt-1 tracking-wider">Add, Edit Price, Update Pictures, or Delete Items</p>
+                      </div>
+                      <button 
+                        onClick={() => handleOpenProductModal()}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-pink-500 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-pink-600 transition-all shadow-xl shadow-pink-500/10"
+                      >
+                        <Plus className="w-4 h-4" /> Add Product
+                      </button>
                     </div>
-                  </div>
-                </div>
+
+                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead className="text-[10px] text-slate-400 font-bold uppercase bg-white border-b border-slate-100">
+                            <tr>
+                              <th className="px-6 py-3">Catalog Item</th>
+                              <th className="px-6 py-3">Category</th>
+                              <th className="px-6 py-3">Price Unit</th>
+                              <th className="px-6 py-3 text-right">Control Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="text-sm text-slate-600">
+                            {productsList.map((product) => (
+                              <tr key={product.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors group">
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-4">
+                                    <div className="w-14 h-14 bg-slate-100 rounded-lg overflow-hidden border border-slate-100 shrink-0">
+                                      <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="font-black text-slate-900 truncate uppercase text-[11px] tracking-tight">{product.name}</p>
+                                      <p className="text-[9px] text-slate-400 line-clamp-1 max-w-[250px] font-medium">{product.description}</p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-black uppercase tracking-widest">
+                                    {product.category}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 font-black text-pink-600 font-mono">
+                                  {formatPrice(product.price)}
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                  <div className="flex justify-end gap-3">
+                                    <button 
+                                      onClick={() => handleOpenProductModal(product)}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-900 hover:text-white rounded-lg transition-all text-slate-600 text-[10px] font-black uppercase tracking-wider"
+                                      title="Edit Product Details & Price"
+                                    >
+                                      Edit / Price
+                                    </button>
+                                    <button 
+                                      onClick={() => deleteProduct(product.id)}
+                                      className="p-2 bg-pink-50 hover:bg-pink-500 hover:text-white rounded-lg transition-all text-pink-500"
+                                      title="Delete Product from Catalog"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {adminSubTab === 'members' && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                      <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <h3 className="font-bold text-slate-800">Verified Member Database</h3>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead className="text-[10px] text-slate-400 font-bold uppercase bg-white border-b border-slate-100">
+                            <tr>
+                              <th className="px-6 py-3">Customer ID</th>
+                              <th className="px-6 py-3">Contact Details</th>
+                              <th className="px-6 py-3">Address Path</th>
+                              <th className="px-6 py-3">Status</th>
+                              <th className="px-6 py-3 text-right">Tier</th>
+                            </tr>
+                          </thead>
+                          <tbody className="text-sm text-slate-600">
+                            {memberData.map((member) => (
+                              <tr key={member.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                                <td className="px-6 py-4">
+                                  <p className="font-bold text-slate-900">{member.name}</p>
+                                  <p className="text-[10px] text-slate-400 font-mono">{member.id}</p>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <p className="text-[11px] font-black text-slate-700">{member.mobile}</p>
+                                  <p className="text-[10px] text-slate-400">{member.email}</p>
+                                </td>
+                                <td className="px-6 py-4 text-[10px] max-w-[180px] truncate font-medium">{member.address}</td>
+                                <td className="px-6 py-4">
+                                  <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                                    member.status === 'Active' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'
+                                  }`}>
+                                    {member.status}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-right font-black text-slate-900 uppercase tracking-tighter italic">{member.plan}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
               </motion.div>
             )}
 
