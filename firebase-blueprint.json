@@ -12,7 +12,9 @@
         "description": { "type": "string" },
         "imageUrl": { "type": "string" },
         "category": { "type": "string" },
-        "stock": { "type": "number", "description": "Current stock quantity" }
+        "stock": { "type": "number", "description": "Current stock quantity" },
+        "discountPercentage": { "type": "number", "description": "Percentage discount" },
+        "isOffer": { "type": "boolean", "description": "Whether the product is on offer" }
       },
       "required": ["name", "price", "category", "stock"]
     },

@@ -47,13 +47,15 @@ service cloud.firestore {
                p.imageUrl is string && p.imageUrl.size() <= 1048576 &&
                p.stock is number && p.stock >= 0 &&
                (!p.keys().hasAny(['description']) || (p.description is string && p.description.size() <= 10000)) &&
-               (!p.keys().hasAny(['id']) || p.id == productId);
+               (!p.keys().hasAny(['id']) || p.id == productId) &&
+               (!p.keys().hasAny(['discountPercentage']) || (p.discountPercentage is number && p.discountPercentage >= 0 && p.discountPercentage <= 100)) &&
+               (!p.keys().hasAny(['isOffer']) || p.isOffer is bool);
       }
 
       allow read: if true;
       allow create: if isAdmin() && isValidProduct(incoming()) && isValidId(productId);
       allow update: if (isAdmin() && isValidProduct(incoming()) && (
-        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'price', 'buyingPrice', 'description', 'imageUrl', 'category', 'stock', 'id'])
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'price', 'buyingPrice', 'description', 'imageUrl', 'category', 'stock', 'id', 'discountPercentage', 'isOffer'])
       )) || (
         // Public can reduce stock during purchase
         incoming().diff(existing()).affectedKeys().hasOnly(['stock']) &&
