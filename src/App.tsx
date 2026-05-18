@@ -227,6 +227,7 @@ export default function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [ads, setAds] = useState<Advertisement[]>([]);
   const [isAdModalOpen, setIsAdModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [editingAd, setEditingAd] = useState<Advertisement | null>(null);
   const [adForm, setAdForm] = useState({
     title: '',
@@ -301,6 +302,7 @@ export default function App() {
       setAuthError('');
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
+      setIsAuthModalOpen(false);
     } catch (error) {
       console.error("Login failed", error);
       setAuthError('Google login failed. Please try again.');
@@ -316,6 +318,7 @@ export default function App() {
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
+      setIsAuthModalOpen(false);
     } catch (error: any) {
       console.error("Auth failed", error);
       setAuthError(error.message || 'Authentication failed');
@@ -823,11 +826,23 @@ export default function App() {
             </div>
           ) : (
             <button 
-              onClick={login}
+              onClick={() => setIsAuthModalOpen(true)}
               className="w-full py-3 bg-pink-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-pink-600 transition-all flex items-center justify-center gap-2"
             >
               <User className="w-4 h-4" /> Sign In
             </button>
+          )}
+          
+          {!isAdmin && (
+            <div className="mt-4 pt-4 border-t border-slate-800 flex justify-center">
+              <button 
+                onClick={() => setActiveTab('admin')}
+                className="text-slate-700 hover:text-slate-500 transition-colors"
+                title="Management"
+              >
+                <ShieldCheck className="w-3 h-3" />
+              </button>
+            </div>
           )}
         </div>
       </aside>
@@ -1078,6 +1093,37 @@ export default function App() {
                     </table>
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {/* Admin View Guard */}
+            {activeTab === 'admin' && !isAdmin && (
+              <motion.div
+                key="admin-denied"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="max-w-md mx-auto py-20 text-center"
+              >
+                <div className="w-24 h-24 bg-pink-100 rounded-full flex items-center justify-center mx-auto mb-6 text-pink-500 ring-8 ring-pink-50 shadow-xl">
+                  <ShieldCheck className="w-12 h-12" />
+                </div>
+                <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter italic mb-4">Restricted Access</h2>
+                <p className="text-slate-500 text-xs font-medium mb-8 leading-relaxed">
+                  The Administration Control Panel is only accessible to authorized personnel. 
+                  Please sign in with administrator credentials to continue.
+                </p>
+                <button 
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-[10px] uppercase tracking-[0.3em] hover:bg-pink-600 transition-all shadow-xl shadow-slate-900/10 flex items-center justify-center gap-3"
+                >
+                  <LogIn className="w-4 h-4" /> Sign In as Admin
+                </button>
+                <button 
+                  onClick={() => setActiveTab('store')}
+                  className="mt-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors"
+                >
+                  Return to Store
+                </button>
               </motion.div>
             )}
 
@@ -3036,6 +3082,114 @@ export default function App() {
           )}
         </button>
       </div>
+
+      {/* Authentication Modal */}
+      <AnimatePresence>
+        {isAuthModalOpen && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAuthModalOpen(false)}
+              className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative bg-white shadow-2xl rounded-2xl w-full max-w-md overflow-hidden"
+            >
+              <div className="p-8">
+                <div className="flex justify-between items-start mb-6">
+                  <div className="w-16 h-16 bg-pink-50 rounded-2xl flex items-center justify-center">
+                    <ShieldCheck className="w-8 h-8 text-pink-500" />
+                  </div>
+                  <button 
+                    onClick={() => setIsAuthModalOpen(false)}
+                    className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5 text-slate-400" />
+                  </button>
+                </div>
+
+                <div className="mb-8">
+                  <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter italic">
+                    {authMode === 'login' ? 'Authorized Entry' : 'New Registration'}
+                  </h2>
+                  <p className="text-slate-500 text-[10px] font-bold uppercase mt-1 tracking-widest">
+                    {authMode === 'login' ? 'Please provide your credentials' : 'Create a new account to continue'}
+                  </p>
+                </div>
+
+                <form onSubmit={handleEmailAuth} className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Email Address / User ID</label>
+                    <input 
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="admin@naturalcare.com"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all outline-none"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Password</label>
+                    <input 
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all outline-none"
+                      required
+                    />
+                  </div>
+
+                  {authError && (
+                    <div className="p-3 bg-pink-50 border border-pink-100 rounded-xl animate-shake">
+                      <p className="text-[10px] font-bold text-pink-600 uppercase tracking-wider text-center">
+                        {authError}
+                      </p>
+                    </div>
+                  )}
+
+                  <button 
+                    type="submit"
+                    className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase tracking-[0.3em] hover:bg-pink-600 transition-all shadow-xl shadow-slate-900/10"
+                  >
+                    {authMode === 'login' ? 'Login to Portal' : 'Sign Up'}
+                  </button>
+                </form>
+
+                <div className="my-6 flex items-center gap-4">
+                  <div className="h-px bg-slate-100 flex-1"></div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">or</span>
+                  <div className="h-px bg-slate-100 flex-1"></div>
+                </div>
+
+                <button 
+                  onClick={login}
+                  className="w-full py-4 bg-white border-2 border-slate-100 text-slate-900 rounded-xl font-bold text-xs uppercase tracking-[0.3em] hover:border-pink-500 hover:text-pink-500 transition-all flex items-center justify-center gap-3"
+                >
+                  <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" />
+                  Google Identity
+                </button>
+
+                <div className="mt-8 text-center bg-slate-50 p-4 rounded-xl">
+                  <button 
+                    onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}
+                    className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-pink-500 transition-all"
+                  >
+                    {authMode === 'login' ? "Need a member account? Sign Up" : "Already have an account? Login"}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
