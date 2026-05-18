@@ -54,7 +54,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword
 } from 'firebase/auth';
-import { db, auth } from './lib/firebase';
+import { db, auth, configError } from './lib/firebase';
 
 // Firebase Error Handling
 enum OperationType {
@@ -366,6 +366,45 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
 
+  if (configError) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 text-center">
+        <div className="max-w-md bg-white p-10 rounded-[2.5rem] shadow-2xl shadow-pink-500/5 border border-slate-100">
+          <div className="bg-pink-50 w-20 h-20 rounded-[2rem] flex items-center justify-center mx-auto mb-8">
+            <SettingsIcon className="text-pink-500 w-10 h-10 animate-spin-slow" />
+          </div>
+          <h1 className="text-3xl font-black text-slate-900 mb-4 tracking-tight uppercase">Config Needed</h1>
+          <p className="text-slate-500 text-sm font-medium leading-relaxed mb-8">
+            Firebase environment variables are missing. Please configure them in your deployment dashboard to activate the application.
+          </p>
+          <div className="text-left bg-slate-900 rounded-3xl p-6 border border-white/5 shadow-inner">
+            <p className="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-3 opacity-50">Required Secrets</p>
+            <div className="space-y-1.5 font-mono text-[10px]">
+              <div className="flex justify-between items-center text-pink-400/80">
+                <span>VITE_FIREBASE_API_KEY</span>
+                <span className="text-slate-700">●●●●●●</span>
+              </div>
+              <div className="flex justify-between items-center text-pink-400/80">
+                <span>VITE_FIREBASE_PROJECT_ID</span>
+                <span className="text-slate-700">●●●●●●</span>
+              </div>
+              <div className="flex justify-between items-center text-pink-400/80">
+                <span>VITE_FIREBASE_AUTH_DOMAIN</span>
+                <span className="text-slate-700">●●●●●●</span>
+              </div>
+            </div>
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-8 w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-pink-600 transition-all shadow-xl shadow-slate-900/10"
+          >
+            Retry Connection
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const handleOpenSlip = (order: Order) => {
     setSelectedSlipOrder(order);
     setShowSlip(true);
@@ -403,6 +442,7 @@ export default function App() {
   });
 
   useEffect(() => {
+    if (configError) return;
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setIsAdmin(u?.email === 'tanvir.khc@gmail.com');
@@ -458,6 +498,7 @@ export default function App() {
 
   // Fetch Ads
   useEffect(() => {
+    if (configError || !db) return;
     const q = query(collection(db, 'advertisements'), orderBy('order', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items: Advertisement[] = [];
@@ -471,6 +512,7 @@ export default function App() {
 
   // Fetch Products
   useEffect(() => {
+    if (configError || !db) return;
     const q = query(collection(db, 'products'), orderBy('name'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items: Product[] = [];
@@ -484,7 +526,7 @@ export default function App() {
 
   // Fetch Orders
   useEffect(() => {
-    if (!isAdmin) {
+    if (configError || !db || !isAdmin) {
       setOrders([]);
       return;
     }
@@ -501,7 +543,7 @@ export default function App() {
 
   // Fetch Members
   useEffect(() => {
-    if (!isAdmin) {
+    if (configError || !db || !isAdmin) {
       setMemberData([]);
       return;
     }
@@ -518,7 +560,7 @@ export default function App() {
 
   // Fetch Chat Sessions (Admin Only)
   useEffect(() => {
-    if (!isAdmin) {
+    if (configError || !db || !isAdmin) {
       setSessions([]);
       return;
     }
@@ -535,7 +577,7 @@ export default function App() {
 
   // Fetch Messages for Active Admin Chat
   useEffect(() => {
-    if (!isAdmin || !activeChatId) return;
+    if (configError || !db || !isAdmin || !activeChatId) return;
     const q = query(collection(db, `chats/${activeChatId}/messages`), orderBy('timestamp', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs: Message[] = [];
@@ -549,6 +591,7 @@ export default function App() {
 
   // Fetch Messages for Visitor Chat
   useEffect(() => {
+    if (configError || !db) return;
     const sessionId = user ? (isAdmin ? null : user.uid) : visitorChatId;
     if (!sessionId) return;
 

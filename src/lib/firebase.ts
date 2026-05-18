@@ -17,6 +17,25 @@ const firebaseConfig = {
   databaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || '(default)'
 };
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.databaseId);
-export const auth = getAuth(app);
+let app;
+let db: any;
+let auth: any;
+let configError = false;
+
+try {
+  if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+    throw new Error('Missing critical Firebase configuration (API Key or Project ID).');
+  }
+  app = initializeApp(firebaseConfig);
+  db = getFirestore(app, firebaseConfig.databaseId);
+  auth = getAuth(app);
+} catch (error) {
+  console.error('Firebase initialization failed:', error);
+  configError = true;
+  // Initialize with null/proxies to prevent immediate app crashes on import
+  app = null;
+  db = null;
+  auth = { currentUser: null, onAuthStateChanged: () => () => {} }; 
+}
+
+export { db, auth, configError };
