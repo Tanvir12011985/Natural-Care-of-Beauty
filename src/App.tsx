@@ -25,7 +25,8 @@ import {
   User,
   LogIn,
   BarChart3,
-  Package
+  Package,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -96,6 +97,8 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 }
 
 // Types
+const BRAND_LOGO = "/natural_care_logo_v3.png";
+
 interface Message {
   id: string;
   text: string;
@@ -120,6 +123,16 @@ interface Product {
   imageUrl: string;
   category: string;
   stock: number;
+}
+
+interface Advertisement {
+  id: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  linkUrl: string;
+  active: boolean;
+  order: number;
 }
 
 interface CartItem extends Product {
@@ -162,6 +175,17 @@ const formatPrice = (price: number) => {
   return `TK ${price.toLocaleString()}`;
 };
 
+const formatTimestamp = (isoString: string) => {
+  if (!isoString) return '';
+  try {
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return isoString;
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return isoString;
+  }
+};
+
 // Image Compression Utility
 const compressImage = async (dataUrl: string): Promise<string> => {
   return new Promise((resolve) => {
@@ -196,11 +220,22 @@ const compressImage = async (dataUrl: string): Promise<string> => {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'store' | 'admin' | 'checkout' | 'success' | 'tracking'>('store');
-  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'products' | 'members' | 'status' | 'plans' | 'chat' | 'slips' | 'accounts'>('products');
+  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'products' | 'members' | 'status' | 'plans' | 'chat' | 'slips' | 'accounts' | 'ads'>('products');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [isAdmin, setIsAdmin] = useState(false); 
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [ads, setAds] = useState<Advertisement[]>([]);
+  const [isAdModalOpen, setIsAdModalOpen] = useState(false);
+  const [editingAd, setEditingAd] = useState<Advertisement | null>(null);
+  const [adForm, setAdForm] = useState({
+    title: '',
+    description: '',
+    imageUrl: '',
+    linkUrl: '',
+    active: true,
+    order: 0
+  });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
   const [lastPlacedOrder, setLastPlacedOrder] = useState<Order | null>(null);
@@ -222,27 +257,22 @@ export default function App() {
     setShowSlip(true);
   };
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [sessions, setSessions] = useState<ChatSession[]>([
-    { id: 'chat-1', customerName: 'Alex M.', lastMessage: 'Is the rosehip oil in stock?', unreadCount: 1 },
-    { id: 'chat-2', customerName: 'David Wu', lastMessage: 'Thank you for the fast shipping!', unreadCount: 0 },
-  ]);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Record<string, Message[]>>({
-    'chat-1': [
-      { id: 'm1', text: 'Hello, I have a question about the Rosehip oil.', senderId: 'user1', senderName: 'Alex M.', isAdmin: false, timestamp: '10:00 AM' },
-      { id: 'm2', text: 'Sure! How can we help?', senderId: 'admin', senderName: 'Admin', isAdmin: true, timestamp: '10:02 AM' },
-      { id: 'm3', text: 'Is the rosehip oil in stock?', senderId: 'user1', senderName: 'Alex M.', isAdmin: false, timestamp: '10:05 AM' },
-    ],
-    'chat-2': [
-      { id: 'm4', text: 'Hi, when will my order be shipped?', senderId: 'user2', senderName: 'David Wu', isAdmin: false, timestamp: 'Yesterday' },
-      { id: 'm5', text: 'It was shipped this morning! You should receive it soon.', senderId: 'admin', senderName: 'Admin', isAdmin: true, timestamp: 'Yesterday' },
-    ]
-  });
+  const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [newMessage, setNewMessage] = useState('');
-  const [visitorChatId] = useState(`visitor-${Math.floor(1000 + Math.random() * 9000)}`);
-  const [visitorMessages, setVisitorMessages] = useState<Message[]>([
-    { id: 'v1', text: 'Hello! How can we help you today?', senderId: 'admin', senderName: 'Admin', isAdmin: true, timestamp: 'Just now' }
-  ]);
+  
+  // Persist visitor ID across sessions
+  const [visitorChatId] = useState(() => {
+    const saved = localStorage.getItem('visitorChatId');
+    if (saved) return saved;
+    const newId = `visitor-${Math.floor(1000 + Math.random() * 9000)}`;
+    localStorage.setItem('visitorChatId', newId);
+    return newId;
+  });
+
+  const [visitorMessages, setVisitorMessages] = useState<Message[]>([]);
+  const [visitorSession, setVisitorSession] = useState<ChatSession | null>(null);
 
   // Members State
   const [memberData, setMemberData] = useState<Member[]>([]);
@@ -298,6 +328,19 @@ export default function App() {
     setPassword('');
   };
 
+  // Fetch Ads
+  useEffect(() => {
+    const q = query(collection(db, 'advertisements'), orderBy('order', 'asc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items: Advertisement[] = [];
+      snapshot.forEach(doc => {
+        items.push({ ...doc.data(), id: doc.id } as Advertisement);
+      });
+      setAds(items);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'advertisements'));
+    return () => unsubscribe();
+  }, []);
+
   // Fetch Products
   useEffect(() => {
     const q = query(collection(db, 'products'), orderBy('name'));
@@ -344,6 +387,53 @@ export default function App() {
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'members'));
     return () => unsubscribe();
   }, [isAdmin]);
+
+  // Fetch Chat Sessions (Admin Only)
+  useEffect(() => {
+    if (!isAdmin) {
+      setSessions([]);
+      return;
+    }
+    const q = query(collection(db, 'chats'), orderBy('lastMessageAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const chatSessions: ChatSession[] = [];
+      snapshot.forEach(doc => {
+        chatSessions.push({ ...doc.data(), id: doc.id } as ChatSession);
+      });
+      setSessions(chatSessions);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'chats'));
+    return () => unsubscribe();
+  }, [isAdmin]);
+
+  // Fetch Messages for Active Admin Chat
+  useEffect(() => {
+    if (!isAdmin || !activeChatId) return;
+    const q = query(collection(db, `chats/${activeChatId}/messages`), orderBy('timestamp', 'asc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs: Message[] = [];
+      snapshot.forEach(doc => {
+        msgs.push({ ...doc.data(), id: doc.id } as Message);
+      });
+      setMessages(prev => ({ ...prev, [activeChatId]: msgs }));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, `chats/${activeChatId}/messages`));
+    return () => unsubscribe();
+  }, [isAdmin, activeChatId]);
+
+  // Fetch Messages for Visitor Chat
+  useEffect(() => {
+    const sessionId = user ? (isAdmin ? null : user.uid) : visitorChatId;
+    if (!sessionId) return;
+
+    const q = query(collection(db, `chats/${sessionId}/messages`), orderBy('timestamp', 'asc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs: Message[] = [];
+      snapshot.forEach(doc => {
+        msgs.push({ ...doc.data(), id: doc.id } as Message);
+      });
+      setVisitorMessages(msgs);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, `chats/${sessionId}/messages`));
+    return () => unsubscribe();
+  }, [user, visitorChatId, isAdmin]);
 
   // Initial connection test
   useEffect(() => {
@@ -460,6 +550,18 @@ export default function App() {
     stock: 0
   });
 
+  const handleAdImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const compressed = await compressImage(reader.result as string);
+        setAdForm(prev => ({ ...prev, imageUrl: compressed }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleOpenProductModal = (product: Product | null = null) => {
     if (product) {
       setEditingProduct(product);
@@ -501,6 +603,45 @@ export default function App() {
     }
   };
 
+  const handleOpenAdModal = (ad: Advertisement | null = null) => {
+    if (ad) {
+      setEditingAd(ad);
+      setAdForm({ title: ad.title, description: ad.description || '', imageUrl: ad.imageUrl, linkUrl: ad.linkUrl || '', active: ad.active, order: ad.order });
+    } else {
+      setEditingAd(null);
+      setAdForm({ title: '', description: '', imageUrl: '', linkUrl: '', active: true, order: ads.length });
+    }
+    setIsAdModalOpen(true);
+  };
+
+  const handleAdSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingAd) {
+      try {
+        await updateDoc(doc(db, 'advertisements', editingAd.id), adForm);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `advertisements/${editingAd.id}`);
+      }
+    } else {
+      try {
+        await addDoc(collection(db, 'advertisements'), adForm);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, 'advertisements');
+      }
+    }
+    setIsAdModalOpen(false);
+  };
+
+  const deleteAd = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this advertisement?')) {
+      try {
+        await deleteDoc(doc(db, 'advertisements', id));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `advertisements/${id}`);
+      }
+    }
+  };
+
   const handleImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -524,56 +665,65 @@ export default function App() {
     setIsCartOpen(true);
   };
 
-  const handleSendVisitorMessage = (e: React.FormEvent) => {
+  const handleSendVisitorMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
     
-    const msg: Message = {
-      id: Date.now().toString(),
+    const sessionId = user ? user.uid : visitorChatId;
+    const senderName = user?.email || 'Visitor';
+
+    const msg = {
       text: newMessage,
-      senderId: visitorChatId,
-      senderName: 'Me',
+      senderId: sessionId,
+      senderName,
       isAdmin: false,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      timestamp: new Date().toISOString()
+    };
+
+    const sessionData = {
+      customerName: senderName,
+      lastMessage: newMessage,
+      lastMessageAt: new Date().toISOString(),
+      visitorId: sessionId,
+      unreadCount: 1 // Admin unread
     };
     
-    setVisitorMessages(prev => [...prev, msg]);
-    setNewMessage('');
-
-    // Simulate Admin Response for demo
-    setTimeout(() => {
-      const autoReply: Message = {
-        id: (Date.now() + 1).toString(),
-        text: "Thanks for your message! Our team will get back to you shortly.",
-        senderId: 'admin',
-        senderName: 'Admin',
-        isAdmin: true,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setVisitorMessages(prev => [...prev, autoReply]);
-    }, 1500);
+    try {
+      // Create/Update session
+      await setDoc(doc(db, 'chats', sessionId), sessionData, { merge: true });
+      // Add message
+      await addDoc(collection(db, `chats/${sessionId}/messages`), msg);
+      setNewMessage('');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `chats/${sessionId}`);
+    }
   };
 
-  const handleSendAdminMessage = (e: React.FormEvent) => {
+  const handleSendAdminMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !activeChatId) return;
     
-    const msg: Message = {
-      id: Date.now().toString(),
+    const msg = {
       text: newMessage,
       senderId: 'admin',
       senderName: 'Admin',
       isAdmin: true,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      timestamp: new Date().toISOString()
     };
     
-    setMessages(prev => ({
-      ...prev,
-      [activeChatId]: [...(prev[activeChatId] || []), msg]
-    }));
-    
-    setSessions(prev => prev.map(s => s.id === activeChatId ? { ...s, lastMessage: newMessage, unreadCount: 0 } : s));
-    setNewMessage('');
+    try {
+      // Update session last message
+      await updateDoc(doc(db, 'chats', activeChatId), {
+        lastMessage: newMessage,
+        lastMessageAt: new Date().toISOString(),
+        unreadCount: 0
+      });
+      // Add message
+      await addDoc(collection(db, `chats/${activeChatId}/messages`), msg);
+      setNewMessage('');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `chats/${activeChatId}`);
+    }
   };
 
   const removeFromCart = (productId: string) => {
@@ -603,7 +753,17 @@ export default function App() {
       <aside className="w-64 bg-slate-900 flex flex-col text-white shrink-0">
         <div className="p-6 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-pink-500 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-pink-500/20 text-base">B</div>
+            <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center p-1 shadow-lg group overflow-hidden border border-white/10 shrink-0">
+              <img 
+                src={BRAND_LOGO} 
+                alt="Logo" 
+                className="w-full h-full object-cover rounded-full group-hover:scale-105 transition-transform duration-500"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                  (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-full h-full bg-pink-500 flex items-center justify-center font-bold text-white text-lg">B</div>';
+                }}
+              />
+            </div>
             <span className="font-semibold text-base tracking-tight leading-tight">Natural Care <br/> of Beauty</span>
           </div>
         </div>
@@ -676,7 +836,15 @@ export default function App() {
       <main className="flex-1 flex flex-col min-w-0">
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shadow-sm shrink-0">
           <div className="flex items-center gap-4 text-sm font-medium text-slate-500">
-            <span className="font-bold text-slate-900">Natural Care of Beauty</span>
+            <div className="w-12 h-12 rounded-full overflow-hidden border border-slate-100 flex items-center justify-center bg-slate-50">
+              <img 
+                src={BRAND_LOGO} 
+                alt="Logo" 
+                className="w-full h-full object-cover"
+                onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
+              />
+            </div>
+            <span className="font-bold text-slate-900 border-l border-slate-100 pl-4">Natural Care of Beauty</span>
             <span className="text-slate-300 text-lg">/</span>
             <span className="text-slate-900 capitalize">{activeTab}</span>
           </div>
@@ -736,6 +904,51 @@ export default function App() {
                     ))}
                   </div>
                 </div>
+
+                {/* Advertisement / Offers Section */}
+                {ads.filter(a => a.active).length > 0 && (
+                  <div className="relative overflow-hidden rounded-3xl bg-slate-900 h-[300px] mb-8">
+                    <div className="flex h-full transition-transform duration-500">
+                      {ads.filter(a => a.active).map((ad) => (
+                        <div key={ad.id} className="min-w-full h-full relative group">
+                          <img 
+                            src={ad.imageUrl} 
+                            alt={ad.title}
+                            className="w-full h-full object-cover opacity-60"
+                          />
+                          <div className="absolute inset-0 flex flex-col justify-center px-12 text-white">
+                            <motion.span 
+                              initial={{ opacity: 0, x: -20 }}
+                              whileInView={{ opacity: 1, x: 0 }}
+                              className="text-[10px] font-black uppercase tracking-[0.4em] text-pink-400 mb-2"
+                            >
+                              Exclusive Offer
+                            </motion.span>
+                            <motion.h2 
+                              initial={{ opacity: 0, y: 20 }}
+                              whileInView={{ opacity: 1, y: 0 }}
+                              className="text-4xl font-black italic tracking-tighter mb-4 max-w-lg leading-none"
+                            >
+                              {ad.title}
+                            </motion.h2>
+                            <motion.p 
+                              initial={{ opacity: 0, y: 20 }}
+                              whileInView={{ opacity: 1, y: 0 }}
+                              className="text-slate-300 text-sm font-medium max-w-sm mb-6"
+                            >
+                              {ad.description}
+                            </motion.p>
+                            {ad.linkUrl && (
+                              <button className="w-fit px-8 py-3 bg-pink-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-pink-600 transition-all shadow-xl shadow-pink-500/20">
+                                Shop Now
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {filteredProducts.map((product) => (
@@ -889,6 +1102,7 @@ export default function App() {
                     { id: 'products', label: 'Product Control', icon: Package },
                     { id: 'members', label: 'Members', icon: Users },
                     { id: 'status', label: 'Order Status', icon: Truck },
+                    { id: 'ads', label: 'Home Advertisements', icon: Star },
                     { id: 'plans', label: 'Membership Plans', icon: CreditCard },
                     { id: 'chat', label: 'Live Chat', icon: MessageSquare, badge: sessions.some(s => s.unreadCount > 0) },
                     { id: 'slips', label: 'Delivery Slips', icon: Printer },
@@ -913,6 +1127,85 @@ export default function App() {
 
                 {/* Admin Main Content area */}
                 <div className="flex-1">
+                  {adminSubTab === 'ads' && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                      <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <div>
+                          <h1 className="text-xl font-black text-slate-900 tracking-tight uppercase tracking-widest">Home Advertisements</h1>
+                          <p className="text-slate-500 text-[10px] font-bold uppercase mt-1 tracking-wider">Manage carousel banners and offers on the home page</p>
+                        </div>
+                        <button 
+                          onClick={() => handleOpenAdModal()}
+                          className="flex items-center gap-2 px-5 py-2.5 bg-pink-500 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-pink-600 transition-all shadow-xl shadow-pink-500/10"
+                        >
+                          <Plus className="w-4 h-4" /> Add Advertisement
+                        </button>
+                      </div>
+
+                      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead className="text-[10px] text-slate-400 font-bold uppercase bg-white border-b border-slate-100">
+                              <tr>
+                                <th className="px-6 py-3">Banner</th>
+                                <th className="px-6 py-3">Title & Info</th>
+                                <th className="px-6 py-3">Status</th>
+                                <th className="px-6 py-3">Order</th>
+                                <th className="px-6 py-3 text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="text-sm text-slate-600">
+                              {ads.length === 0 ? (
+                                <tr>
+                                  <td colSpan={5} className="px-6 py-20 text-center text-slate-400 font-bold uppercase tracking-widest italic text-[10px]">
+                                    No advertisements added yet
+                                  </td>
+                                </tr>
+                              ) : (
+                                ads.map((ad) => (
+                                  <tr key={ad.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors group">
+                                    <td className="px-6 py-4">
+                                      <div className="w-24 h-12 bg-slate-100 rounded-lg overflow-hidden border border-slate-100 shrink-0">
+                                        <img src={ad.imageUrl} alt={ad.title} className="w-full h-full object-cover" />
+                                      </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                      <p className="font-black text-slate-900 uppercase text-[11px] tracking-tight">{ad.title}</p>
+                                      <p className="text-[9px] text-slate-400 line-clamp-1 font-medium">{ad.description}</p>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                      <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                                        ad.active ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-500'
+                                      }`}>
+                                        {ad.active ? 'Active' : 'Inactive'}
+                                      </span>
+                                    </td>
+                                    <td className="px-6 py-4 font-black text-slate-900 font-mono italic">#{ad.order}</td>
+                                    <td className="px-6 py-4 text-right">
+                                      <div className="flex justify-end gap-3">
+                                        <button 
+                                          onClick={() => handleOpenAdModal(ad)}
+                                          className="p-2 bg-slate-100 hover:bg-slate-900 hover:text-white rounded-lg transition-all text-slate-600"
+                                        >
+                                          <SettingsIcon className="w-4 h-4" />
+                                        </button>
+                                        <button 
+                                          onClick={() => deleteAd(ad.id)}
+                                          className="p-2 bg-pink-50 hover:bg-pink-500 hover:text-white rounded-lg transition-all text-pink-500"
+                                        >
+                                          <X className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
                   {adminSubTab === 'status' && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -1310,7 +1603,7 @@ export default function App() {
                                   msg.isAdmin ? 'bg-pink-500 text-white shadow-pink-500/10' : 'bg-white text-slate-700 border border-slate-100'
                                 }`}>
                                   {msg.text}
-                                  <p className={`text-[9px] mt-1 ${msg.isAdmin ? 'text-pink-100' : 'text-slate-400'}`}>{msg.timestamp}</p>
+                                  <p className={`text-[9px] mt-1 ${msg.isAdmin ? 'text-pink-100' : 'text-slate-400'}`}>{formatTimestamp(msg.timestamp)}</p>
                                 </div>
                               </div>
                             ))}
@@ -1475,6 +1768,163 @@ export default function App() {
                             className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-[10px] font-bold uppercase tracking-widest focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none"
                           />
                         </div>
+                        <div className="flex items-end">
+                          <button 
+                            onClick={() => {
+                              const start = new Date(fromDate);
+                              const end = new Date(fromDate);
+                              end.setHours(23, 59, 59, 999);
+
+                              const dayOrders = orders.filter(order => {
+                                const orderDate = new Date(order.timestamp);
+                                return orderDate >= start && orderDate <= end;
+                              });
+
+                              if (dayOrders.length === 0) return;
+
+                              const headers = ['Order #', 'Timestamp', 'Customer', 'Items Count', 'Total', 'Invoice #'];
+                              const rows = dayOrders.map(o => [
+                                o.orderNumber,
+                                o.timestamp,
+                                o.customerName,
+                                o.items.length,
+                                o.totalAmount,
+                                o.invoiceNumber
+                              ]);
+
+                              const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                              const blob = new Blob([csv], { type: 'text/csv' });
+                              const url = window.URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = `daily_sales_${fromDate}.csv`;
+                              a.click();
+                            }}
+                            className="bg-white border border-slate-200 text-slate-700 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm"
+                          >
+                            <Download className="w-3.5 h-3.5" /> Download CSV
+                          </button>
+
+                          <button 
+                            onClick={() => {
+                              const printWindow = window.open('', '_blank');
+                              if (!printWindow) return;
+
+                              const start = new Date(fromDate);
+                              const end = new Date(fromDate);
+                              end.setHours(23, 59, 59, 999);
+
+                              const dayOrders = orders.filter(order => {
+                                const orderDate = new Date(order.timestamp);
+                                return orderDate >= start && orderDate <= end;
+                              });
+
+                              let totalSales = 0;
+                              let totalCost = 0;
+                              let itemsSold = 0;
+                              
+                              const categorySummary: Record<string, number> = {};
+
+                              dayOrders.forEach(order => {
+                                totalSales += order.totalAmount;
+                                order.items.forEach(item => {
+                                  itemsSold += item.quantity;
+                                  totalCost += (item.buyingPrice || 0) * item.quantity;
+                                  categorySummary[item.category] = (categorySummary[item.category] || 0) + item.totalPrice;
+                                });
+                              });
+
+                              const html = `
+                                <html>
+                                  <head>
+                                    <title>Daily Sales Closing - ${fromDate}</title>
+                                    <style>
+                                      body { font-family: 'Courier New', Courier, monospace; padding: 20px; color: #000; }
+                                      .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 20px; }
+                                      .title { font-size: 20px; font-weight: bold; margin: 0; text-transform: uppercase; }
+                                      .date { font-size: 14px; margin-top: 5px; }
+                                      .stats { margin-bottom: 20px; }
+                                      .stat-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dotted #ccc; }
+                                      .stat-label { font-weight: bold; text-transform: uppercase; }
+                                      .table { w-full border-collapse: collapse; margin-top: 20px; width: 100%; }
+                                      .table th, .table td { border: 1px solid #000; padding: 8px; text-align: left; font-size: 12px; }
+                                      .table th { background: #f0f0f0; text-transform: uppercase; }
+                                      .footer { margin-top: 30px; text-align: center; font-size: 10px; border-top: 2px dashed #000; padding-top: 10px; }
+                                      @media print { .no-print { display: none; } }
+                                    </style>
+                                  </head>
+                                  <body>
+                                    <div class="header">
+                                      <div style="width: 200px; height: 200px; border-radius: 50%; overflow: hidden; margin: 0 auto 20px; border: 2px solid #0f172a; display: flex; align-items: center; justify-content: center;">
+                                        <img src="${BRAND_LOGO}" alt="Logo" style="width: 100%; height: 100%; object-fit: cover;" />
+                                      </div>
+                                      <h1 class="title">Daily Sales Closing Report</h1>
+                                      <div class="date">DATE: ${new Date(fromDate).toLocaleDateString('en-BD', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                                    </div>
+
+                                    <div class="stats">
+                                      <div class="stat-item">
+                                        <span class="stat-label">Total Transactions</span>
+                                        <span>${dayOrders.length} ORDERS</span>
+                                      </div>
+                                      <div class="stat-item">
+                                        <span class="stat-label">Total Items Sold</span>
+                                        <span>${itemsSold} PCS</span>
+                                      </div>
+                                      <div class="stat-item">
+                                        <span class="stat-label">Gross Revenue</span>
+                                        <span>৳ ${totalSales.toLocaleString()}</span>
+                                      </div>
+                                      <div class="stat-item">
+                                        <span class="stat-label">Total COGS (Cost)</span>
+                                        <span>৳ ${totalCost.toLocaleString()}</span>
+                                      </div>
+                                      <div class="stat-item" style="border-bottom: 2px solid #000; margin-top: 5px; padding-top: 10px;">
+                                        <span class="stat-label">Net Daily Profit</span>
+                                        <span style="font-size: 18px; font-weight: 900;">৳ ${(totalSales - totalCost).toLocaleString()}</span>
+                                      </div>
+                                    </div>
+
+                                    <h3>ORDER DISPATCH LOG</h3>
+                                    <table class="table">
+                                      <thead>
+                                        <tr>
+                                          <th>Time</th>
+                                          <th>Order #</th>
+                                          <th>Customer</th>
+                                          <th>Items</th>
+                                          <th>Amount</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        ${dayOrders.map(o => `
+                                          <tr>
+                                            <td>${new Date(o.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                                            <td>${o.orderNumber}</td>
+                                            <td>${o.customerName}</td>
+                                            <td>${o.items.length}</td>
+                                            <td>৳ ${o.totalAmount.toLocaleString()}</td>
+                                          </tr>
+                                        `).join('')}
+                                      </tbody>
+                                    </table>
+
+                                    <div class="footer">
+                                      <p>GENERATED ON: ${new Date().toLocaleString()}</p>
+                                      <p>*** END OF DAILY CLOSING RECORD ***</p>
+                                    </div>
+                                    <script>window.print();</script>
+                                  </body>
+                                </html>
+                              `;
+                              printWindow.document.write(html);
+                              printWindow.document.close();
+                            }}
+                            className="bg-slate-900 border border-slate-800 text-white rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] hover:bg-pink-500 hover:border-pink-500 transition-all flex items-center gap-2 shadow-lg shadow-slate-900/10"
+                          >
+                            <Printer className="w-3.5 h-3.5" /> Daily Sales Report
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -1600,6 +2050,67 @@ export default function App() {
                                </div>
                              </div>
                           </div>
+
+                          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                              <div>
+                                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">Itemized Stock Value Breakdown</h3>
+                                <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5 tracking-wider">Detailed inventory levels and valuation per product.</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Global Cost:</span>
+                                <span className="text-sm font-black text-slate-900 font-mono tracking-tighter">{formatPrice(data.currentStockCostValue)}</span>
+                              </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left border-collapse">
+                                <thead>
+                                  <tr className="bg-slate-50/50">
+                                    <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 italic">Product Entity</th>
+                                    <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 italic">Category</th>
+                                    <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 italic text-right">Units in Stock</th>
+                                    <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 italic text-right">Buying Price</th>
+                                    <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 italic text-right">Selling Price</th>
+                                    <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 italic text-right bg-pink-50/30">Total Value</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                  {productsList.map((product) => (
+                                    <tr key={product.id} className="hover:bg-slate-50/50 transition-colors group">
+                                      <td className="px-6 py-4">
+                                        <div className="text-[11px] font-black text-slate-900 uppercase tracking-tight group-hover:text-pink-600 transition-colors">{product.name}</div>
+                                      </td>
+                                      <td className="px-6 py-4 text-nowrap">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-100/50 px-2 py-1 rounded-md border border-slate-100">{product.category}</span>
+                                      </td>
+                                      <td className="px-6 py-4 text-right">
+                                        <div className={`text-xs font-black font-mono flex flex-col items-end ${product.stock <= 5 ? 'text-pink-500' : 'text-slate-700'}`}>
+                                          <span>{product.stock} PCS</span>
+                                          {product.stock <= 5 && <span className="text-[8px] uppercase tracking-tighter opacity-70">Low Stock Alert</span>}
+                                        </div>
+                                      </td>
+                                      <td className="px-6 py-4 text-right">
+                                        <span className="text-xs font-bold text-slate-400 font-mono tracking-tighter">{formatPrice(product.buyingPrice || 0)}</span>
+                                      </td>
+                                      <td className="px-6 py-4 text-right">
+                                        <span className="text-xs font-bold text-pink-500/60 font-mono tracking-tighter">{formatPrice(product.price)}</span>
+                                      </td>
+                                      <td className="px-6 py-4 text-right bg-pink-50/10">
+                                        <div className="flex flex-col items-end">
+                                          <span className="text-sm font-black text-slate-900 font-mono tracking-tighter">
+                                            {formatPrice(product.stock * (product.buyingPrice || 0))}
+                                          </span>
+                                          <span className="text-[8px] font-black text-green-600 uppercase tracking-[0.1em]">
+                                            Potential: {formatPrice(product.stock * product.price)}
+                                          </span>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
                         </div>
                       );
                     })()}
@@ -1611,6 +2122,122 @@ export default function App() {
 
             {/* Product Add/Edit Modal */}
             <AnimatePresence>
+              {isAdModalOpen && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setIsAdModalOpen(false)}
+                    className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm"
+                  />
+                  <motion.div 
+                    initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                    className="relative bg-white shadow-2xl rounded-2xl w-full max-w-xl overflow-hidden"
+                  >
+                    <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                      <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                        {editingAd ? 'Edit Advertisement' : 'Add Advertisement'}
+                      </h2>
+                      <button 
+                        onClick={() => setIsAdModalOpen(false)}
+                        className="p-2 hover:bg-white rounded-full transition-colors"
+                      >
+                        <X className="w-5 h-5 text-slate-400" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleAdSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Title</label>
+                        <input 
+                          type="text" 
+                          required
+                          placeholder="e.g. Summer Special Offer"
+                          value={adForm.title}
+                          onChange={(e) => setAdForm(prev => ({ ...prev, title: e.target.value }))}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all outline-none"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Description</label>
+                        <textarea 
+                          placeholder="e.g. Get 20% off on all eye care products..."
+                          value={adForm.description}
+                          onChange={(e) => setAdForm(prev => ({ ...prev, description: e.target.value }))}
+                          rows={2}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all outline-none resize-none"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Display Order</label>
+                          <input 
+                            type="number" 
+                            value={adForm.order}
+                            onChange={(e) => setAdForm(prev => ({ ...prev, order: parseInt(e.target.value) || 0 }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all outline-none"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Link URL (Optional)</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. /offers"
+                            value={adForm.linkUrl}
+                            onChange={(e) => setAdForm(prev => ({ ...prev, linkUrl: e.target.value }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="checkbox" 
+                          id="adActive"
+                          checked={adForm.active}
+                          onChange={(e) => setAdForm(prev => ({ ...prev, active: e.target.checked }))}
+                          className="w-4 h-4 text-pink-500 border-slate-300 rounded focus:ring-pink-500"
+                        />
+                        <label htmlFor="adActive" className="text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer">Show on Home Page</label>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Advertisement Image</label>
+                        <div className="flex gap-4">
+                          <label className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-xl p-4 hover:border-pink-300 transition-all cursor-pointer bg-slate-50 group">
+                            <input 
+                              type="file" 
+                              accept="image/*"
+                              onChange={handleAdImageFile}
+                              className="hidden"
+                            />
+                            <Download className="w-6 h-6 text-slate-300 mb-2 group-hover:text-pink-400" />
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">Click to Browse</p>
+                          </label>
+                          {adForm.imageUrl && (
+                            <div className="w-32 h-20 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                              <img src={adForm.imageUrl} className="w-full h-full object-cover" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <button 
+                        type="submit"
+                        className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase tracking-[0.3em] hover:bg-pink-600 transition-all shadow-xl shadow-slate-900/10 mt-4"
+                      >
+                        {editingAd ? 'Save Changes' : 'Create Advertisement'}
+                      </button>
+                    </form>
+                  </motion.div>
+                </div>
+              )}
+
               {isProductModalOpen && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
                   <motion.div 
@@ -1759,8 +2386,20 @@ export default function App() {
                   className="max-w-md mx-auto py-12"
                 >
                   <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-xl shadow-slate-200/50">
-                    <div className="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <LogIn className="w-8 h-8 text-pink-500" />
+                    <div className="flex flex-col items-center mb-8">
+                      <div className="w-48 h-48 rounded-full overflow-hidden border-4 border-pink-50 shadow-xl mb-6 flex items-center justify-center bg-white">
+                        <img 
+                          src={BRAND_LOGO} 
+                          alt="Natural Care Logo" 
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      </div>
+                      <div className="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center">
+                        <LogIn className="w-8 h-8 text-pink-500" />
+                      </div>
                     </div>
                     
                     <h2 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tighter italic text-center">
@@ -2029,6 +2668,14 @@ export default function App() {
                 animate={{ opacity: 1, scale: 1 }}
                 className="flex flex-col items-center justify-center py-10 text-center"
               >
+                <div className="w-64 h-64 rounded-full overflow-hidden border-4 border-green-50 shadow-2xl mb-8 flex items-center justify-center bg-white">
+                  <img 
+                    src={BRAND_LOGO} 
+                    alt="Logo" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
+                  />
+                </div>
                 <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6">
                   <Check className="w-10 h-10 text-green-600" />
                 </div>
@@ -2055,20 +2702,6 @@ export default function App() {
                 </div>
 
                 <div className="mt-8 flex flex-col gap-4 w-full max-w-sm">
-                  <button 
-                    onClick={() => {
-                      if (isAdmin) {
-                        const latestOrder = orders[0];
-                        if (latestOrder) handleOpenSlip(latestOrder);
-                      } else if (lastPlacedOrder) {
-                        handleOpenSlip(lastPlacedOrder);
-                      }
-                    }}
-                    className="flex items-center justify-center gap-3 px-8 py-4 bg-pink-500 text-white rounded-xl font-bold text-xs uppercase tracking-[0.3em] hover:bg-pink-600 transition-all shadow-xl shadow-pink-500/20"
-                  >
-                    <Printer className="w-4 h-4" /> Generate Delivery Slip
-                  </button>
-                  
                   <button 
                     onClick={() => setActiveTab('store')}
                     className="px-8 py-4 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-[0.3em] hover:bg-slate-800 transition-all shadow-xl shadow-slate-900/10"
@@ -2101,8 +2734,16 @@ export default function App() {
               >
                 <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                   <div className="flex items-center gap-3">
+                    <div className="w-20 h-20 rounded-full overflow-hidden border border-slate-100 flex items-center justify-center bg-slate-50 shrink-0 shadow-inner">
+                      <img 
+                        src={BRAND_LOGO} 
+                        alt="Logo" 
+                        className="w-full h-full object-cover"
+                        onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
+                      />
+                    </div>
                     <ShoppingBag className="w-5 h-5 text-pink-500" />
-                    <h2 className="text-xl font-bold text-slate-900">Your Cart</h2>
+                    <h2 className="text-xl font-bold text-slate-900 border-l border-slate-100 pl-3 leading-none">Your Cart</h2>
                     <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded text-[10px] font-bold uppercase">{cartCount} ITEMS</span>
                   </div>
                   <button 
@@ -2229,7 +2870,14 @@ export default function App() {
               >
                 <div className="flex-1 overflow-auto bg-white p-4 text-[10px] text-slate-900 font-sans">
                   {/* Slip Header */}
-                  <div className="text-center border-b border-dashed border-slate-300 pb-4 mb-4">
+                  <div className="text-center border-b border-dashed border-slate-300 pb-4 mb-4 flex flex-col items-center">
+                    <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-slate-900 mb-4 flex items-center justify-center">
+                      <img 
+                        src={BRAND_LOGO} 
+                        alt="Brand Logo" 
+                        className="w-full h-full object-cover grayscale brightness-50"
+                      />
+                    </div>
                     <p className="font-black uppercase tracking-wider text-[12px]">Natural Care</p>
                     <p className="font-bold uppercase tracking-widest text-[8px] mb-1">of Beauty</p>
                     <p className="font-medium text-slate-500">DELIVERY SLIP</p>
@@ -2354,7 +3002,7 @@ export default function App() {
                       msg.isAdmin ? 'bg-white text-slate-700 border border-slate-100 shadow-sm' : 'bg-pink-500 text-white shadow-lg shadow-pink-500/10'
                     }`}>
                       {msg.text}
-                      <p className={`text-[9px] mt-1 ${msg.isAdmin ? 'text-slate-400' : 'text-pink-100'}`}>{msg.timestamp}</p>
+                      <p className={`text-[9px] mt-1 ${msg.isAdmin ? 'text-slate-400' : 'text-pink-100'}`}>{formatTimestamp(msg.timestamp)}</p>
                     </div>
                   </div>
                 ))}
@@ -2383,7 +3031,7 @@ export default function App() {
           className="w-14 h-14 bg-slate-900 text-white rounded-full flex items-center justify-center shadow-2xl hover:bg-pink-500 transition-all group relative"
         >
           {isChatOpen ? <X className="w-6 h-6" /> : <MessageSquare className="w-6 h-6" />}
-          {!isChatOpen && (
+          {!isChatOpen && visitorMessages.length > 0 && visitorMessages[visitorMessages.length - 1].isAdmin && (
             <span className="absolute -top-1 -right-1 w-5 h-5 bg-pink-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white animate-bounce">1</span>
           )}
         </button>

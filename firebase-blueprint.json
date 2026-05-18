@@ -74,10 +74,38 @@
         "senderId": { "type": "string" },
         "senderName": { "type": "string" },
         "isAdmin": { "type": "boolean" },
-        "timestamp": { "type": "string" },
-        "sessionId": { "type": "string" }
+        "timestamp": { "type": "string" }
       },
-      "required": ["text", "senderId", "isAdmin", "timestamp", "sessionId"]
+      "required": ["text", "senderId", "isAdmin", "timestamp"]
+    },
+    "ChatSession": {
+      "title": "ChatSession",
+      "description": "A live chat session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerName": { "type": "string" },
+        "lastMessage": { "type": "string" },
+        "lastMessageAt": { "type": "string" },
+        "unreadCount": { "type": "number" },
+        "visitorId": { "type": "string" }
+      },
+      "required": ["customerName", "lastMessage", "lastMessageAt", "visitorId"]
+    },
+    "Advertisement": {
+      "title": "Advertisement",
+      "description": "Home page advertisement or offer banner",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "linkUrl": { "type": "string" },
+        "active": { "type": "boolean" },
+        "order": { "type": "number" }
+      },
+      "required": ["title", "imageUrl", "active"]
     }
   },
   "firestore": {
@@ -93,9 +121,17 @@
       "schema": "Member",
       "description": "Member database"
     },
+    "/chats/{sessionId}": {
+      "schema": "ChatSession",
+      "description": "Active chat sessions"
+    },
     "/chats/{sessionId}/messages/{messageId}": {
       "schema": "ChatMessage",
-      "description": "Chat messages for a specific session"
+      "description": "Messages for a specific chat session"
+    },
+    "/advertisements/{adId}": {
+      "schema": "Advertisement",
+      "description": "Home page banners and offers"
     }
   }
 }

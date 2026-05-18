@@ -89,22 +89,27 @@ service cloud.firestore {
 
     // Chats
     match /chats/{sessionId} {
-      allow read, write: if isAdmin() || (isSignedIn() && sessionId == request.auth.uid) || sessionId.startsWith('visitor-');
+      function isValidSession(s) {
+        return s.customerName is string && s.customerName.size() > 0 &&
+               s.lastMessage is string &&
+               s.lastMessageAt is string &&
+               s.visitorId is string;
+      }
+
+      allow read: if isAdmin() || sessionId == request.auth.uid || sessionId.startsWith('visitor-');
+      allow create, update: if (isAdmin() || sessionId == request.auth.uid || sessionId.startsWith('visitor-')) && isValidSession(incoming());
       
       match /messages/{messageId} {
         function isValidMessage(m) {
-          return m.text is string && m.text.size() > 0 && m.text.size() <= 1000 &&
+          return m.text is string && m.text.size() > 0 && m.text.size() <= 2000 &&
                  m.senderId is string &&
+                 m.senderName is string &&
                  m.isAdmin is bool &&
-                 m.timestamp is string &&
-                 m.sessionId == sessionId;
+                 m.timestamp is string;
         }
 
-        allow read: if isAdmin() || (isSignedIn() && sessionId == request.auth.uid) || sessionId.startsWith('visitor-');
-        allow create: if isValidMessage(incoming()) && (
-          (incoming().isAdmin == false && (sessionId == incoming().senderId || sessionId == request.auth.uid || sessionId.startsWith('visitor-'))) ||
-          isAdmin()
-        );
+        allow read: if isAdmin() || sessionId == request.auth.uid || sessionId.startsWith('visitor-');
+        allow create: if (isAdmin() || sessionId == request.auth.uid || sessionId.startsWith('visitor-')) && isValidMessage(incoming());
       }
     }
     
@@ -112,6 +117,22 @@ service cloud.firestore {
     match /admins/{adminId} {
       allow read: if isSignedIn();
       allow write: if false; // Only manageable via console or service account
+    }
+
+    // Advertisements
+    match /advertisements/{adId} {
+      function isValidAd(a) {
+        return a.title is string && a.title.size() > 0 && a.title.size() <= 200 &&
+               a.imageUrl is string && a.imageUrl.size() <= 1048576 &&
+               a.active is bool &&
+               a.order is number &&
+               (!a.keys().hasAny(['description']) || (a.description is string && a.description.size() <= 1000)) &&
+               (!a.keys().hasAny(['linkUrl']) || (a.linkUrl is string && a.linkUrl.size() <= 1000));
+      }
+      allow read: if true;
+      allow create: if isAdmin() && isValidAd(incoming()) && isValidId(adId);
+      allow update: if isAdmin() && isValidAd(incoming());
+      allow delete: if isAdmin();
     }
   }
 }
