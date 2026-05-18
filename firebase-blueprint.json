@@ -11,9 +11,10 @@
         "buyingPrice": { "type": "number" },
         "description": { "type": "string" },
         "imageUrl": { "type": "string" },
-        "category": { "type": "string" }
+        "category": { "type": "string" },
+        "stock": { "type": "number", "description": "Current stock quantity" }
       },
-      "required": ["name", "price", "category"]
+      "required": ["name", "price", "category", "stock"]
     },
     "Order": {
       "title": "Order",

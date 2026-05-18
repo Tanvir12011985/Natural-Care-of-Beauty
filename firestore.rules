@@ -17,7 +17,7 @@ service cloud.firestore {
 
     function isAdmin() {
       // For this app, we trust the owner email or an entry in admins collection
-      return isSignedIn() && (
+      return isEmailVerified() && (
         request.auth.token.email == 'tanvir.khc@gmail.com' ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
@@ -44,13 +44,21 @@ service cloud.firestore {
                p.price is number && p.price >= 0 &&
                p.buyingPrice is number && p.buyingPrice >= 0 &&
                p.category is string &&
-               p.imageUrl is string && p.imageUrl.size() <= 2000;
+               p.imageUrl is string && p.imageUrl.size() <= 1048576 &&
+               p.stock is number && p.stock >= 0 &&
+               (!p.keys().hasAny(['description']) || (p.description is string && p.description.size() <= 10000)) &&
+               (!p.keys().hasAny(['id']) || p.id == productId);
       }
 
       allow read: if true;
       allow create: if isAdmin() && isValidProduct(incoming()) && isValidId(productId);
-      allow update: if isAdmin() && isValidProduct(incoming()) && (
-        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'price', 'buyingPrice', 'description', 'imageUrl', 'category'])
+      allow update: if (isAdmin() && isValidProduct(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'price', 'buyingPrice', 'description', 'imageUrl', 'category', 'stock', 'id'])
+      )) || (
+        // Public can reduce stock during purchase
+        incoming().diff(existing()).affectedKeys().hasOnly(['stock']) &&
+        incoming().stock < existing().stock &&
+        incoming().stock >= 0
       );
       allow delete: if isAdmin();
     }
