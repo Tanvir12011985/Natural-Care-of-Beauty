@@ -378,20 +378,22 @@ export default function App() {
             Firebase environment variables are missing. Please configure them in your deployment dashboard to activate the application.
           </p>
           <div className="text-left bg-slate-900 rounded-3xl p-6 border border-white/5 shadow-inner">
-            <p className="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-3 opacity-50">Required Secrets</p>
-            <div className="space-y-1.5 font-mono text-[10px]">
-              <div className="flex justify-between items-center text-pink-400/80">
-                <span>VITE_FIREBASE_API_KEY</span>
-                <span className="text-slate-700">●●●●●●</span>
-              </div>
-              <div className="flex justify-between items-center text-pink-400/80">
-                <span>VITE_FIREBASE_PROJECT_ID</span>
-                <span className="text-slate-700">●●●●●●</span>
-              </div>
-              <div className="flex justify-between items-center text-pink-400/80">
-                <span>VITE_FIREBASE_AUTH_DOMAIN</span>
-                <span className="text-slate-700">●●●●●●</span>
-              </div>
+            <p className="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-3 opacity-50">Configuration Status</p>
+            <div className="space-y-2.5 font-mono text-[10px]">
+              {[
+                { name: 'VITE_FIREBASE_API_KEY', val: import.meta.env.VITE_FIREBASE_API_KEY },
+                { name: 'VITE_FIREBASE_PROJECT_ID', val: import.meta.env.VITE_FIREBASE_PROJECT_ID },
+                { name: 'VITE_FIREBASE_AUTH_DOMAIN', val: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN }
+              ].map(v => (
+                <div key={v.name} className="flex justify-between items-center">
+                  <span className="text-slate-400">{v.name}</span>
+                  {v.val ? (
+                    <span className="text-emerald-400 font-bold bg-emerald-400/10 px-2 py-0.5 rounded">DETECTED</span>
+                  ) : (
+                    <span className="text-rose-400 font-bold bg-rose-400/10 px-2 py-0.5 rounded">MISSING</span>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
           <button 
