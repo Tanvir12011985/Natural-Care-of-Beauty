@@ -6,12 +6,12 @@ import { getFirestore } from 'firebase/firestore';
 // In Netlify/Vercel, set these as Environment Variables.
 // In local development, use a .env file.
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBt-isSrbkpUVrxWSSEIa2QAqHcJxKzNxY",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "profound-arena-207pf.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "profound-arena-207pf",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "profound-arena-207pf.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "840120201366",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:840120201366:web:7bf5c392a3796b7b4692b7",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
   // Use the custom database ID if provided, otherwise default to '(default)'
   databaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || '(default)'
