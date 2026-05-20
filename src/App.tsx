@@ -455,12 +455,23 @@ export default function App() {
   const login = async () => {
     try {
       setAuthError('');
+      if (!auth) {
+        throw new Error('Firebase Authentication is not initialized.');
+      }
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
       setIsAuthModalOpen(false);
-    } catch (error) {
-      console.error("Login failed", error);
-      setAuthError('Google login failed. Please try again.');
+    } catch (error: any) {
+      console.error("Login failed:", error);
+      if (error && error.code === 'auth/unauthorized-domain') {
+        setAuthError(`Domain restriction! Please add "${window.location.hostname}" to your Firebase Console -> Authentication -> Settings -> Authorized domains list.`);
+      } else if (error && error.code === 'auth/popup-blocked') {
+        setAuthError('Google login popup was blocked by your browser. Please allow popups for this site.');
+      } else if (error && error.message) {
+        setAuthError(error.message);
+      } else {
+        setAuthError('Google login failed. Please try again.');
+      }
     }
   };
 
